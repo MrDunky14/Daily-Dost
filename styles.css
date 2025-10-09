@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --background: #f7f9fb;
+    --foreground: #0f172a;
+    --card-background: #ffffff;
+    --card-border: #e2e8f0;
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+    --secondary: #64748b;
+    --accent: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --xp-bar: #8b5cf6;
+}
+
+[data-theme='dark'] {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+    --card-background: #1e293b;
+    --card-border: #334155;
+    --primary: #60a5fa;
+    --primary-foreground: #0f172a;
+    --secondary: #94a3b8;
+    --accent: #34d399;
+    --danger: #f87171;
+    --warning: #fbbf24;
+    --xp-bar: #a78bfa;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background);
+    color: var(--foreground);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.card {
+    background-color: var(--card-background);
+    border: 1px solid var(--card-border);
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.habit-item { transition: transform 0.2s ease-out, opacity 0.2s ease-out; }
+.habit-item.swiping { transition: none; }
+.habit-item.completed { opacity: 0.6; transform: translateX(100%); }
+
+.heatmap-cell { transition: background-color 0.3s; }
+
+.pomodoro-btn.active {
+    background-color: var(--primary) !important;
+    color: var(--primary-foreground) !important;
+}
+
+/* Loading Spinner */
+.loading-animation {
+    border-top-color: var(--primary);
+    animation: spinner 1s linear infinite;
+}
+@keyframes spinner { to { transform: rotate(360deg); } }
+
+/* Animations for Toast */
+@keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fade-in-up 0.5s forwards; }
+@keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
