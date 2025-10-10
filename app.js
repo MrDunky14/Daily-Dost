@@ -986,3 +986,189 @@ window.onload = () => {
         updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`), { targetGpa: parseFloat(e.target.value) });
     });
 };
+
+// ============================================
+// ANIMATION ENHANCEMENTS (Add to end of app.js)
+// ============================================
+
+// Initialize Anime.js Animations
+const initAnimeAnimations = () => {
+  // Animate cards on page load
+  anime({
+    targets: '.card',
+    opacity: [0, 1],
+    translateY: [40, 0],
+    delay: anime.stagger(100),
+    duration: 800,
+    easing: 'easeOutCubic'
+  });
+
+  // Animate habit items
+  anime({
+    targets: '.habit-item',
+    opacity: [0, 1],
+    translateX: [-30, 0],
+    delay: anime.stagger(80),
+    duration: 600,
+    easing: 'easeOutExpo'
+  });
+
+  // Animate progress items
+  anime({
+    targets: '.progress-item',
+    opacity: [0, 1],
+    translateY: [30, 0],
+    delay: anime.stagger(100, {start: 200}),
+    duration: 700,
+    easing: 'easeOutCubic'
+  });
+};
+
+// Initialize GSAP Animations
+const initGSAPAnimations = () => {
+  // Register ScrollTrigger
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Header fade in
+  gsap.from('.header-animate', {
+    y: -100,
+    opacity: 0,
+    duration: 0.8,
+    ease: 'power3.out'
+  });
+
+  // Float animation for cards
+  gsap.to('.card-hover', {
+    y: -5,
+    duration: 2,
+    ease: 'power1.inOut',
+    stagger: 0.2,
+    yoyo: true,
+    repeat: -1
+  });
+
+  // XP Bar fill animation
+  const xpBar = document.getElementById('xp-bar');
+  if (xpBar) {
+    gsap.from(xpBar, {
+      width: 0,
+      duration: 1.5,
+      ease: 'power2.out',
+      delay: 0.5
+    });
+  }
+
+  // Magnetic effect for buttons
+  document.querySelectorAll('.btn-animate').forEach(btn => {
+    btn.addEventListener('mouseenter', (e) => {
+      gsap.to(btn, {
+        scale: 1.05,
+        duration: 0.3,
+        ease: 'power2.out'
+      });
+    });
+
+    btn.addEventListener('mouseleave', (e) => {
+      gsap.to(btn, {
+        scale: 1,
+        duration: 0.3,
+        ease: 'power2.out'
+      });
+    });
+  });
+};
+
+// Reinitialize animations when view changes
+const originalSwitchView = switchView;
+switchView = (viewId) => {
+  originalSwitchView(viewId);
+  
+  setTimeout(() => {
+    // Animate new view content
+    anime({
+      targets: `#${viewId} .card`,
+      opacity: [0, 1],
+      translateY: [30, 0],
+      delay: anime.stagger(80),
+      duration: 600,
+      easing: 'easeOutCubic'
+    });
+  }, 50);
+};
+
+// Initialize animations when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    initAnimeAnimations();
+    initGSAPAnimations();
+  }, 100);
+});
+
+// Reinitialize on data updates
+const originalRenderDashboard = renderDashboard;
+renderDashboard = () => {
+  originalRenderDashboard();
+  
+  setTimeout(() => {
+    anime({
+      targets: '.habit-item',
+      opacity: [0, 1],
+      translateX: [-20, 0],
+      delay: anime.stagger(60),
+      duration: 500,
+      easing: 'easeOutExpo'
+    });
+  }, 50);
+};
+
+// Add success animation when habit is completed
+const animateHabitCompletion = (element) => {
+  anime({
+    targets: element,
+    scale: [1, 1.1, 1],
+    duration: 600,
+    easing: 'easeInOutQuad',
+    complete: () => {
+      gsap.to(element, {
+        x: window.innerWidth,
+        opacity: 0,
+        duration: 0.5,
+        ease: 'power2.in'
+      });
+    }
+  });
+};
+
+// Enhanced toast animation
+const originalShowToast = showToast;
+showToast = (message) => {
+  const toast = document.createElement('div');
+  toast.className = 'fixed bottom-5 right-5 text-white p-4 rounded-xl shadow-2xl glass-effect';
+  toast.style.background = 'rgba(99, 102, 241, 0.9)';
+  toast.style.backdropFilter = 'blur(20px)';
+  toast.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+  toast.innerText = message;
+  document.body.appendChild(toast);
+  
+  anime({
+    targets: toast,
+    translateY: [50, 0],
+    opacity: [0, 1],
+    duration: 500,
+    easing: 'easeOutCubic',
+    complete: () => {
+      setTimeout(() => {
+        anime({
+          targets: toast,
+          translateY: [0, -50],
+          opacity: [1, 0],
+          duration: 400,
+          easing: 'easeInCubic',
+          complete: () => toast.remove()
+        });
+      }, 3000);
+    }
+  });
+};
+
+console.log('🎨 Animation enhancements loaded!');
