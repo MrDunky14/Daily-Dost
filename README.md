@@ -137,3 +137,11 @@ To run this project locally:
         // ... rest of the config
     };
     ```
+    
+### 🚀 Deployed Project
+
+To access this web-app anywhere on any device:
+
+**Click on the given link or paste it in your browser:**
+
+    https://mrdunky14.github.io/Daily-Dost/
