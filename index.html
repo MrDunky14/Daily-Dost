@@ -15,6 +15,83 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* --- Motivational Quotes Section --- */
+        .quote-card {
+          text-align: center;
+          margin-top: 24px;
+          padding: 28px 24px;
+        }
+        
+        .quote-text {
+          font-size: clamp(18px, 2.2vw, 22px);
+          font-weight: 700;
+          line-height: 1.6;
+          font-style: italic;
+          letter-spacing: 0.2px;
+          background: linear-gradient(90deg, var(--primary), var(--accent));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          position: relative;
+          opacity: 0;
+          transform: translateY(10px);
+          transition: opacity 420ms ease, transform 420ms ease;
+        }
+        
+        .quote-text.show {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        
+        .quote-text::before,
+        .quote-text::after {
+          content: "“";
+          color: var(--secondary);
+          opacity: 0.5;
+          font-size: 28px;
+          position: relative;
+          top: -2px;
+          margin: 0 6px;
+        }
+        
+        .quote-text::after { content: "”"; }
+        
+        .quote-meta {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          margin-top: 12px;
+          color: var(--secondary);
+        }
+        
+        .quote-author {
+          font-weight: 600;
+          letter-spacing: 0.2px;
+        }
+        
+        .quote-refresh {
+          background: transparent;
+          color: var(--primary);
+          border: 2px solid var(--primary);
+          padding: 8px 14px;
+          border-radius: 12px;
+        }
+        
+        .quote-refresh:hover {
+          background: var(--primary);
+          color: var(--primary-foreground);
+          border-color: var(--primary);
+        }
+        
+        /* Mobile tweaks */
+        @media (max-width: 768px) {
+          .quote-card { padding: 22px 18px; }
+          .quote-text { font-size: clamp(16px, 3.6vw, 20px); }
+        }
+
+    </style>
 </head>
 <body class="antialiased">
 
@@ -120,6 +197,17 @@
                     <div id="empty-habits-message" class="text-center py-8" style="color: var(--secondary);"><p>No habits for today. Add one to get started!</p></div>
                 </div>
             </div>
+            <!-- Motivational Quotes Section -->
+            <section id="motivational-quotes" class="card quote-card float-animate" aria-live="polite">
+              <h2 class="section-title">Daily motivation</h2>
+              <blockquote class="quote-text" id="quoteText">Loading inspiration…</blockquote>
+              <div class="quote-meta">
+                <span class="quote-author" id="quoteAuthor"></span>
+                <button id="quoteRefresh" class="btn-animate quote-refresh" type="button" aria-label="Show another quote">
+                  New quote
+                </button>
+              </div>
+            </section>
 
             <!-- Study Zone View -->
             <div id="study-view" class="view hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -189,7 +277,75 @@
     <!-- Firebase SDKs -->
     <script type="module" src="app.js">
     </script>
+    <script>
+      (function () {
+        const QUOTES = [
+          { text: "Small daily improvements are the key to long-term results.", author: "Unknown" },
+          { text: "Discipline is choosing what is wanted most over what is wanted now.", author: "Abraham Lincoln" },
+          { text: "Focus on progress, not perfection.", author: "Bill Phillips" },
+          { text: "What gets measured gets improved.", author: "Peter Drucker" },
+          { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+          { text: "Consistency beats intensity.", author: "Unknown" },
+          { text: "Dream big. Start small. Act now.", author: "Robin Sharma" },
+          { text: "Energy flows where attention goes.", author: "Tony Robbins" },
+          { text: "Don’t count the days; make the days count.", author: "Muhammad Ali" },
+          { text: "Action is the foundational key to success.", author: "Pablo Picasso" },
+          { text: "Simplicity is the ultimate sophistication.", author: "Leonardo da Vinci" },
+          { text: "If it’s important, schedule it.", author: "Stephen Covey" }
+        ];
+    
+        const $text = document.getElementById("quoteText");
+        const $author = document.getElementById("quoteAuthor");
+        const $refresh = document.getElementById("quoteRefresh");
+    
+        if (!$text || !$author) return;
+    
+        function dayKey(d = new Date()) {
+          return d.toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+    
+        function pickIndex(exclude = -1) {
+          if (QUOTES.length === 1) return 0;
+          let idx = Math.floor(Math.random() * QUOTES.length);
+          if (idx === exclude) idx = (idx + 1) % QUOTES.length;
+          return idx;
+        }
+    
+        function setQuote(idx) {
+          const q = QUOTES[idx];
+          // Animate in
+          $text.classList.remove("show");
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              $text.textContent = q.text;
+              $author.textContent = q.author ? "— " + q.author : "";
+              $text.classList.add("show");
+            });
+          });
+        }
+    
+        // Persist per day to avoid jarring changes
+        const KEY = "motivation:index:" + dayKey();
+        let idx = Number(localStorage.getItem(KEY));
+        if (!Number.isInteger(idx) || idx < 0 || idx >= QUOTES.length) {
+          idx = pickIndex();
+          localStorage.setItem(KEY, String(idx));
+        }
+        setQuote(idx);
+    
+        // Optional: manual refresh (does not change the daily key, so temporary)
+        if ($refresh) {
+          $refresh.addEventListener("click", () => {
+            idx = pickIndex(idx);
+            setQuote(idx);
+          });
+        }
+      })();
+    </script>
+
+    
 </body>
 </html>
+
 
 
