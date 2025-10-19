@@ -214,55 +214,85 @@ const renderUserProfile = () => {
 const renderHabitsForToday = () => {
   const listEl = document.getElementById('habits-list');
   const emptyMsg = document.getElementById('empty-habits-message');
+  
   const today = new Date();
   const dayOfWeek = today.toLocaleString('en-US', { weekday: 'short' }).toLowerCase();
   const todayStr = getTodayString();
   
-  const habitsForToday = habits.filter(h => h.frequency?.days?.includes('everyday') || h.frequency?.days?.includes(dayOfWeek));
-  
-  if (habitsForToday.length === 0) {
+  // Show ALL habits, not just today's
+  if (habits.length === 0) {
     listEl.innerHTML = '';
     emptyMsg.classList.remove('hidden');
   } else {
     emptyMsg.classList.add('hidden');
-    listEl.innerHTML = habitsForToday.map(habit => {
+    listEl.innerHTML = habits.map(habit => {
       const log = habitLogs[todayStr]?.[habit.id];
       const status = log ? normalizeStatus(log.status) : 'pending';
       const category = HABIT_CATEGORIES[habit.category] || HABIT_CATEGORIES.other;
+      
+      // Check if habit is scheduled for today
+      const isScheduledToday = habit.frequency?.days?.includes('everyday') || 
+                                habit.frequency?.days?.includes(dayOfWeek);
+      
       let countdownHTML = '';
       if (habit.isExamPrep && habit.examDate) {
         const examDate = new Date(habit.examDate + 'T00:00:00');
         const daysLeft = Math.ceil((examDate - new Date()) / (1000 * 60 * 60 * 24));
-        countdownHTML = `<span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background-color: var(--warning); color: white">${daysLeft === 0 ? 'Today!' : daysLeft > 0 ? `${daysLeft}d left` : 'Overdue'}</span>`;
+        countdownHTML = `<span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background-color: var(--warning); color: white">${daysLeft <= 0 ? `${daysLeft}d left` : 'Today!'}</span>`;
       }
+      
+      // Display scheduled days if not today
+      let scheduleInfo = '';
+      if (!isScheduledToday) {
+        const daysList = habit.frequency?.days?.join(', ') || 'Not set';
+        scheduleInfo = `<span class="text-xs px-2 py-0.5 rounded-full" style="background-color: var(--secondary); color: white; opacity: 0.7">📅 ${daysList}</span>`;
+      }
+      
       return `
-        <div class="habit-item flex items-center justify-between p-3 rounded-lg card" data-id="${habit.id}" style="border-left: 5px solid ${category.color};">
+        <div class="habit-item flex items-center justify-between p-3 rounded-lg card ${!isScheduledToday ? 'opacity-60' : ''}" data-id="${habit.id}" style="border-left: 5px solid ${category.color}">
           <div class="flex items-center gap-3 overflow-hidden">
-            <span class="text-2xl">${habit.icon || '🎯'}</span>
+            <span class="text-2xl">${habit.icon}</span>
             <div>
               <p class="font-semibold truncate">${habit.name}</p>
-              <div class="flex items-center gap-2 text-xs" style="color: var(--secondary);">
-                <span>🔥 ${habit.streak || 0}</span>
-                <span class="capitalize px-2 py-0.5 rounded-full" style="background-color: ${category.color}20; color: ${category.color};">${category.name}</span>
+              <div class="flex items-center gap-2 text-xs" style="color: var(--secondary)">
+                <span>${habit.streak || 0}🔥</span>
+                <span class="capitalize px-2 py-0.5 rounded-full" style="background-color: ${category.color}20; color: ${category.color}">${category.name}</span>
                 ${countdownHTML}
+                ${scheduleInfo}
               </div>
             </div>
           </div>
           <div class="flex items-center gap-1 flex-shrink-0">
-            ${status === 'pending' ? `
-              <button data-action="complete" class="action-btn p-2 rounded-full hover:bg-green-100 dark:hover:bg-green-800" title="Complete"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button>
-              <button data-action="skip" class="action-btn p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700" title="Skip"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2.5"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg></button>
+            ${status === 'pending' && isScheduledToday ? `
+              <button data-action="complete" class="action-btn p-2 rounded-full hover:bg-green-100 dark:hover:bg-green-800" title="Complete">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+              <button data-action="skip" class="action-btn p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700" title="Skip">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2.5"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/></svg>
+              </button>
+            ` : status === 'pending' && !isScheduledToday ? `
+              <span class="text-xs font-semibold px-3 py-1" style="color: var(--secondary)">Not scheduled</span>
             ` : `
-              <span class="capitalize font-semibold text-sm px-3">${status}</span>
+              <span class="capitalize font-semibold text-sm px-3" style="color: ${
+                status === 'completed' ? 'var(--accent)' : 
+                status === 'skipped' ? 'var(--secondary)' : 
+                'var(--danger)'
+              }">${status}</span>
             `}
-            <button data-action="edit" class="action-btn p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700" title="Edit Habit"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2.5"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+            <button data-action="edit" class="action-btn p-2 rounded-full hover:bg-gray-100 dark:hover:bg-slate-700" title="Edit Habit">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2.5"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+            </button>
           </div>
         </div>
       `;
     }).join('');
-    document.querySelectorAll('.habit-item .action-btn').forEach(btn => btn.addEventListener('click', handleHabitAction));
   }
+  
+  document.querySelectorAll('.habit-item .action-btn').forEach(btn => {
+    btn.addEventListener('click', handleHabitAction);
+  });
 };
+
 
 const handleHabitAction = (e) => {
   e.stopPropagation();
@@ -1179,4 +1209,3 @@ if (analyticsView) {
 }
 
 console.log('🎨 Animation enhancements loaded!');
-
