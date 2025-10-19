@@ -233,7 +233,7 @@ const renderHabitsForToday = () => {
       if (habit.isExamPrep && habit.examDate) {
         const examDate = new Date(habit.examDate + 'T00:00:00');
         const daysLeft = Math.ceil((examDate - new Date()) / (1000 * 60 * 60 * 24));
-        countdownHTML = `<span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background-color: var(--warning); color: white;">${daysLeft > 0 ? `${daysLeft}d left` : 'Today!'}</span>`;
+        countdownHTML = `<span class="text-xs font-semibold px-2 py-0.5 rounded-full" style="background-color: var(--warning); color: white">${daysLeft === 0 ? 'Today!' : daysLeft > 0 ? `${daysLeft}d left` : 'Overdue'}</span>`;
       }
       return `
         <div class="habit-item flex items-center justify-between p-3 rounded-lg card" data-id="${habit.id}" style="border-left: 5px solid ${category.color};">
@@ -1179,3 +1179,4 @@ if (analyticsView) {
 }
 
 console.log('🎨 Animation enhancements loaded!');
+
