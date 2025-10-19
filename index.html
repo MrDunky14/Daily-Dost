@@ -196,18 +196,18 @@
                     <div id="habits-list" class="space-y-3 max-h-[40vh] overflow-y-auto pr-2"></div>
                     <div id="empty-habits-message" class="text-center py-8" style="color: var(--secondary);"><p>No habits for today. Add one to get started!</p></div>
                 </div>
+                <!-- Motivational Quotes Section -->
+                <section id="motivational-quotes" class="card quote-card aria-live="polite">
+                  <h2 class="section-title">Daily motivation</h2>
+                  <blockquote class="quote-text" id="quoteText">Loading inspiration…</blockquote>
+                  <div class="quote-meta">
+                    <span class="quote-author" id="quoteAuthor"></span>
+                    <button id="quoteRefresh" class="btn-animate quote-refresh" type="button" aria-label="Show another quote">
+                      New quote
+                    </button>
+                  </div>
+                </section>
             </div>
-            <!-- Motivational Quotes Section -->
-            <section id="motivational-quotes" class="card quote-card float-animate" aria-live="polite">
-              <h2 class="section-title">Daily motivation</h2>
-              <blockquote class="quote-text" id="quoteText">Loading inspiration…</blockquote>
-              <div class="quote-meta">
-                <span class="quote-author" id="quoteAuthor"></span>
-                <button id="quoteRefresh" class="btn-animate quote-refresh" type="button" aria-label="Show another quote">
-                  New quote
-                </button>
-              </div>
-            </section>
 
             <!-- Study Zone View -->
             <div id="study-view" class="view hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -346,6 +346,7 @@
     
 </body>
 </html>
+
 
 
 
