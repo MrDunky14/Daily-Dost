@@ -788,3 +788,13 @@ body::before {
   transition: transform 0.2s ease;
 }
 
+.card#sticky-notes-section {
+  background-color: var(--card-background);
+  box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+}
+
+#sticky-notes-list > div {
+  min-height: 38px;
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+}
