@@ -79,6 +79,14 @@ const setFixedChartSize = (canvas, heightPx) => {
   canvas.height = heightPx;              // drawing buffer height
 };
 
+// sample data for chart
+const SAMPLE_GRADES = [
+  { date: "2025-09-01", grade: 75 },
+  { date: "2025-09-14", grade: 85 },
+  { date: "2025-09-28", grade: 92 }
+];
+const SAMPLE_MOODS = { "2025-09-01": "neutral", "2025-09-14": "happy", "2025-09-28": "sad" };
+const SAMPLE_SLEEP = { "2025-09-01": 7, "2025-09-14": 8, "2025-09-28": 6 };
 
 // --- Status Normalization Helpers ---
 const normalizeStatus = (s) => {
@@ -416,6 +424,12 @@ const updatePomodoroUI = () => {
   document.querySelectorAll('.pomodoro-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelector(`.pomodoro-btn[data-mode="${pomodoro.mode}"]`).classList.add('active');
   document.getElementById('pomodoro-start-btn').textContent = pomodoro.isRunning ? 'Pause' : 'Start';
+  const cyclesElem = document.getElementById('pomodoro-cycles');
+  if (cyclesElem) {
+    // Prevent showing 'undefined'
+    const currentCycles = typeof pomodoro.completedCycles === "number" ? pomodoro.completedCycles : 0;
+    cyclesElem.textContent = `Cycles: ${currentCycles}/4`;
+  }
 };
 
 const switchPomodoroMode = (mode) => {
@@ -435,6 +449,61 @@ const startPausePomodoro = () => {
         showToast(`${pomodoro.mode === 'work' ? 'Work' : 'Break'} session complete!`);
         if(pomodoro.mode === 'work') grantAchievement('first_pomodoro');
         // Auto-switch logic could go here
+        // --- Pomodoro Auto-switch Extension ---
+        const POMODORO_CYCLE_LIMIT = 4; // Number of work sessions before long break
+        let pomodoro = {
+          timerId: null,
+          mode: 'work',
+          timeLeft: 1500,
+          isRunning: false,
+          completedCycles: 0 // <-- Add this property
+        };
+
+        function startPausePomodoro() {
+          pomodoro.isRunning = !pomodoro.isRunning;
+          if (pomodoro.isRunning) {
+            pomodoro.timerId = setInterval(() => {
+              pomodoro.timeLeft--;
+              if (pomodoro.timeLeft <= 0) {
+                stopPomodoro();
+                handlePomodoroAutoSwitch(); // <-- Auto-switch logic
+              }
+              updatePomodoroUI();
+            }, 1000);
+          } else {
+            clearInterval(pomodoro.timerId);
+            updatePomodoroUI();
+          }
+        }
+
+        function handlePomodoroAutoSwitch() {
+          if (pomodoro.mode === 'work') {
+            grantAchievement('firstpomodoro'); // Keep original achievement logic
+            pomodoro.completedCycles++;
+            if (pomodoro.completedCycles >= POMODORO_CYCLE_LIMIT) {
+              pomodoro.completedCycles = 0; // Reset cycles
+              showToast("Work session complete! Time for a long break ✨");
+              switchPomodoroMode('longBreak');
+            } else {
+              showToast("Work session complete! Time for a short break 🧸");
+              switchPomodoroMode('shortBreak');
+            }
+          } else {
+            showToast((pomodoro.mode === 'longBreak')
+              ? "Long break finished. Ready to focus again!"
+              : "Break finished. Back to work!");
+            switchPomodoroMode('work');
+          }
+          startPausePomodoro(); // Automatically start next timer
+        }
+
+        // Optionally: Reset cycles when Pomodoro is reset manually
+        function resetPomodoro() {
+          stopPomodoro();
+          pomodoro.completedCycles = 0;
+          pomodoro.timeLeft = POMODOROTIMES[pomodoro.mode];
+          updatePomodoroUI();
+        }
       }
       updatePomodoroUI();
     }, 1000);
@@ -805,23 +874,22 @@ const populateHabitSelector = () => {
 
 const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-const renderCorrelationChart = () => {
+function renderCorrelationChart() {
   const canvas = document.getElementById('correlation-chart');
   if (!canvas) return;
 
-  // 1) Hard-lock canvas size to avoid responsive loops
   setFixedChartSize(canvas, 320);
   const ctx = canvas.getContext('2d');
-
-  // 2) Destroy any existing instance (double safety: instance var + Chart.getChart)
-  const existing = Chart.getChart ? Chart.getChart(canvas) : correlationChartInstance;
-  if (existing) {
-    existing.destroy();
-  }
+  if (correlationChartInstance) correlationChartInstance.destroy();
   correlationChartInstance = null;
 
-  // 3) Prepare data
-  const sortedGrades = [...grades].sort((a,b) => new Date(a.date) - new Date(b.date));
+  // Use real grades if any, else sample data
+  const hasGrades = grades && grades.length > 0;
+  const displayGrades = hasGrades ? grades : SAMPLE_GRADES;
+  const displayMoods = hasGrades ? userProfile.moods : SAMPLE_MOODS;
+  const displaySleep = hasGrades ? sleepLogs : SAMPLE_SLEEP;
+
+  const sortedGrades = [...displayGrades].sort((a, b) => new Date(a.date) - new Date(b.date));
   if (sortedGrades.length === 0) return;
 
   const labels = sortedGrades.map(g => g.date);
@@ -829,35 +897,45 @@ const renderCorrelationChart = () => {
   const colWarning = cssVar('--warning');
   const colAccent = cssVar('--accent');
   const moodMap = { sad: 1, neutral: 2, happy: 3 };
-  const moodData = labels.map(d => userProfile.moods?.[d] ? moodMap[userProfile.moods[d]] : null);
-  const sleepData = labels.map(d => (d in sleepLogs ? sleepLogs[d] : null));
 
-  // 4) Render with responsive disabled and fixed devicePixelRatio
+  // Build chart data as before
+  const moodData = labels.map(d => displayMoods[d] ? moodMap[displayMoods[d]] : null);
+  const sleepData = labels.map(d => displaySleep[d] || null);
+
+  // If using sample data, show an info message
+  const infoMsg = document.getElementById('analytics-info-message');
+  if (infoMsg) {
+    if (!hasGrades) {
+      infoMsg.textContent = 'No grades logged yet. Displaying sample chart!';
+      infoMsg.style.display = 'block';
+    } else {
+      infoMsg.style.display = 'none';
+    }
+  }
+
   correlationChartInstance = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [
-        { label: 'Grade (%)', data: sortedGrades.map(g => g.grade), borderColor: colPrimary, yAxisID: 'y', tension: 0.1, fill: false },
-        { label: 'Mood (1-3)', data: moodData, borderColor: colWarning, yAxisID: 'y1', tension: 0.1, fill: false, spanGaps: true },
-        { label: 'Sleep (hours)', data: sleepData, borderColor: colAccent, yAxisID: 'y1', tension: 0.1, fill: false, spanGaps: true }
+        { label: 'Grade', data: sortedGrades.map(g => g.grade), borderColor: colPrimary, yAxisID: 'y', tension: 0.1, fill: false },
+        { label: 'Mood', data: moodData, borderColor: colWarning, yAxisID: 'y1', tension: 0.1, fill: false, spanGaps: true },
+        { label: 'Sleep hours', data: sleepData, borderColor: colAccent, yAxisID: 'y1', tension: 0.1, fill: false, spanGaps: true }
       ]
     },
     options: {
-      responsive: false,              // critical: stop auto-resize
-      maintainAspectRatio: false,     // rely on our fixed height
-      devicePixelRatio: 1,            // avoid DPI multiplying height
-      animation: false,               // avoid reflow loops
-      resizeDelay: 0,                 // no delayed resizes
+      responsive: false, maintainAspectRatio: false,
+      devicePixelRatio: 1, animation: false,
       scales: {
         x: { type: 'time', time: { unit: 'day', tooltipFormat: 'MMM d' } },
-        y: { position: 'left', title: { display: true, text: 'Grade (%)' }, min: 0, max: 100 },
-        y1: { position: 'right', title: { display: true, text: 'Mood & Sleep' }, grid: { drawOnChartArea: false }, min: 0 }
+        y: { position: 'left', title: { display: true, text: 'Grade' }, min: 0, max: 100 },
+        y1: { position: 'right', title: { display: true, text: 'Mood / Sleep' }, grid: { drawOnChartArea: false }, min: 0 }
       },
       plugins: { legend: { display: true } }
     }
   });
-};
+}
+
 
 
 const renderTrendChart = (habitId) => {
@@ -1016,6 +1094,101 @@ window.onload = () => {
     updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`), { targetGpa: parseFloat(e.target.value) });
   });
 };
+
+// Sticky Notes Feature
+const stickyNotesList = document.getElementById('sticky-notes-list');
+const stickyNoteInput = document.getElementById('sticky-note-input');
+const addStickyNoteBtn = document.getElementById('add-sticky-note-btn');
+// Local storage KEY
+const STICKY_NOTES_KEY = 'daily-dost-study-sticky-notes';
+
+function loadStickyNotes() {
+  stickyNotesList.innerHTML = '';
+  const notes = JSON.parse(localStorage.getItem(STICKY_NOTES_KEY) || '[]');
+  notes.forEach((note, idx) => {
+    const noteDiv = document.createElement('div');
+    noteDiv.className = 'flex items-center gap-2 card p-2 bg-yellow-100 dark:bg-gray-900 rounded-md';
+    noteDiv.innerHTML = `
+      <span class="flex-1 text-sm">${note}</span>
+      <button class="text-xs px-2 py-1 rounded hover:bg-red-400 text-red-600 dark:text-red-300" data-idx="${idx}">Delete</button>
+    `;
+    noteDiv.querySelector('button').onclick = function() {
+      deleteStickyNote(this.getAttribute('data-idx'));
+    };
+    stickyNotesList.appendChild(noteDiv);
+  });
+}
+
+function addStickyNote() {
+  const note = stickyNoteInput.value.trim();
+  if (!note) return;
+  const notes = JSON.parse(localStorage.getItem(STICKY_NOTES_KEY) || '[]');
+  notes.push(note);
+  localStorage.setItem(STICKY_NOTES_KEY, JSON.stringify(notes));
+  stickyNoteInput.value = '';
+  loadStickyNotes();
+}
+
+function deleteStickyNote(idx) {
+  const notes = JSON.parse(localStorage.getItem(STICKY_NOTES_KEY) || '[]');
+  notes.splice(idx, 1);
+  localStorage.setItem(STICKY_NOTES_KEY, JSON.stringify(notes));
+  loadStickyNotes();
+}
+
+if (addStickyNoteBtn && stickyNoteInput && stickyNotesList) {
+  addStickyNoteBtn.addEventListener('click', addStickyNote);
+  stickyNoteInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') addStickyNote();
+  });
+  loadStickyNotes();
+}
+
+// Calculator Feature
+const calcDisplay = document.getElementById('calc-display');
+const calcBtns = document.querySelectorAll('.calc-btn');
+let calcInput = '';
+
+function updateCalcDisplay() {
+  calcDisplay.value = calcInput || '0';
+}
+
+function handleCalcBtn(e) {
+  const val = e.target.getAttribute('data-val');
+  if (val !== null) {
+    calcInput += val;
+    updateCalcDisplay();
+  }
+}
+
+function clearCalc() {
+  calcInput = '';
+  updateCalcDisplay();
+}
+
+function evalCalc() {
+  try {
+    let result = eval(calcInput.replace(/÷/g, '/').replace(/×/g, '*'));
+    calcInput = String(result);
+    updateCalcDisplay();
+  } catch {
+    calcInput = '';
+    calcDisplay.value = 'Error';
+  }
+}
+
+calcBtns.forEach(btn => {
+  if (btn.id === 'calc-clear') {
+    btn.onclick = clearCalc;
+  } else if (btn.id === 'calc-equals') {
+    btn.onclick = evalCalc;
+  } else {
+    btn.onclick = handleCalcBtn;
+  }
+});
+
+updateCalcDisplay();
+
 
 // ============================================
 // ANIMATION ENHANCEMENTS (Add to end of app.js)
