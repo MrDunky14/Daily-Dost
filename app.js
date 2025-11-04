@@ -14,7 +14,16 @@ const initialAuthToken = null;
 
 // --- Imports ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithPopup,
+  linkWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged, 
+  signInWithCustomToken 
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
 import { getFirestore, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, writeBatch, getDocs, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- App State ---
@@ -134,16 +143,118 @@ const initializeFirebase = async () => {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
+    
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         userId = user.uid;
+        
+        // Update profile with user info (Google or anonymous)
+        updateUserProfile(user);
         setupListeners();
+        loadingOverlay.classList.add('hidden');
       } else {
-        const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        token ? await signInWithCustomToken(auth, token) : await signInAnonymously(auth);
+        // Sign in anonymously to start
+        const token = (typeof initialAuthToken !== 'undefined') ? initialAuthToken : null;
+        if (token) {
+          await signInWithCustomToken(auth, token);
+        } else {
+          await signInAnonymously(auth);
+        }
       }
     });
-  } catch (error) { console.error("Firebase Init Error:", error); }
+  } catch (error) {
+    console.error("Firebase Init Error:", error);
+  }
+};
+const signInWithGoogle = async () => {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
+  
+  try {
+    const currentUser = auth.currentUser;
+    
+    // If user is anonymous, link the account to preserve data
+    if (currentUser && currentUser.isAnonymous) {
+      try {
+        const result = await linkWithPopup(currentUser, provider);
+        const user = result.user;
+        
+        showToast(`Account upgraded! Welcome, ${user.displayName}!`);
+        updateUserProfile(user);
+        
+        return user;
+      } catch (linkError) {
+        // Handle the case where Google account already exists
+        if (linkError.code === 'auth/credential-already-in-use') {
+          // The Google account is already linked to another account
+          const shouldMigrate = await showConfirmModal(
+            `This Google account is already registered. Do you want to sign in with it? (Your current anonymous data will be lost)`
+          );
+          
+          if (shouldMigrate) {
+            // Sign in with existing Google account
+            const result = await signInWithPopup(auth, provider);
+            showToast(`Signed in as ${result.user.displayName}`);
+            updateUserProfile(result.user);
+            return result.user;
+          } else {
+            return null;
+          }
+        }
+        throw linkError;
+      }
+    } else {
+      // User is not anonymous, just sign in
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      
+      showToast(`Welcome back, ${user.displayName}!`);
+      updateUserProfile(user);
+      
+      return user;
+    }
+  } catch (error) {
+    console.error("Google Sign-In Error:", error);
+    
+    if (error.code === 'auth/popup-closed-by-user') {
+      showToast("Sign-in cancelled");
+    } else {
+      showToast("Failed to sign in with Google");
+    }
+    
+    throw error;
+  }
+};
+
+const updateUserProfile = (user) => {
+  if (!user) return;
+  
+  const avatar = document.getElementById('user-avatar');
+  const levelText = document.getElementById('user-level');
+  
+  // Update avatar based on account type
+  if (user.photoURL) {
+    // Google account with profile picture
+    avatar.src = user.photoURL;
+    avatar.alt = user.displayName || 'User Avatar';
+    avatar.style.border = '2px solid var(--accent)';
+  } else if (user.isAnonymous) {
+    // Anonymous user - keep placeholder
+    const level = userProfile.level || 1;
+    avatar.src = `https://placehold.co/40x40/${level > 5 ? 'a78bfa' : 'cbd5e1'}/${level > 5 ? 'ffffff' : '7c3aed'}?text=L${level}`;
+    avatar.alt = 'Anonymous User';
+    avatar.style.border = '2px solid var(--secondary)';
+  }
+  
+  // Update level text to include name if available
+  const level = userProfile.level || 1;
+  if (user.displayName && !user.isAnonymous) {
+    levelText.innerText = `${user.displayName} • Level ${level}`;
+  } else {
+    levelText.innerText = `Level ${level}`;
+  }
 };
 
 const setupListeners = () => {
@@ -211,13 +322,19 @@ const renderAnalytics = () => {
 
 const renderUserProfile = () => {
   const { level = 1, xp = 0 } = userProfile;
-  const xpForNextLevel = XP_PER_LEVEL + (level - 1) * 20;
+  const xpForNextLevel = (XP_PER_LEVEL * (level - 1)) + 20;
   const xpPercentage = Math.min(100, (xp / xpForNextLevel) * 100);
+
   document.getElementById('user-level').innerText = `Level ${level}`;
   document.getElementById('xp-text').innerText = `${xp}/${xpForNextLevel} XP`;
   document.getElementById('xp-bar').style.width = `${xpPercentage}%`;
-  document.getElementById('user-avatar').src = `https://placehold.co/40x40/${level > 5 ? 'a78bfa' : 'cbd5e1'}/${level > 5 ? 'ffffff' : '7c3aed'}?text=L${level}`;
+
+  // Update profile with current user data
+  if (auth.currentUser) {
+    updateUserProfile(auth.currentUser);
+  }
 };
+
 
 const renderHabitsForToday = () => {
   const listEl = document.getElementById('habits-list');
@@ -1093,6 +1210,47 @@ window.onload = () => {
   document.getElementById('gpa-target-input').addEventListener('change', (e) => {
     updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`), { targetGpa: parseFloat(e.target.value) });
   });
+  // Profile avatar click handler for Google sign-in
+  document.getElementById('user-avatar').addEventListener('click', async () => {
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      showToast("Please wait, loading...");
+      return;
+    }
+    
+    if (currentUser.isAnonymous) {
+      // Anonymous user - offer to upgrade to Google account
+      const shouldUpgrade = await showConfirmModal(
+        'Upgrade to Google Account to save your progress permanently and sync across devices?'
+      );
+      
+      if (shouldUpgrade) {
+        try {
+          await signInWithGoogle();
+        } catch (error) {
+          console.error("Upgrade failed:", error);
+        }
+      }
+    } else {
+      // Already signed in with Google - show profile options
+      const signOut = await showConfirmModal(
+        `Signed in as ${currentUser.displayName || currentUser.email}. Do you want to sign out?`
+      );
+      
+      if (signOut) {
+        await auth.signOut();
+        showToast("Signed out. Creating new anonymous session...");
+        // Will automatically create new anonymous account via onAuthStateChanged
+      }
+    }
+  });
+
+  // Make avatar clickable
+  const avatar = document.getElementById('user-avatar');
+  avatar.style.cursor = 'pointer';
+  avatar.title = 'Click to manage account';
+
 };
 
 // Sticky Notes Feature
