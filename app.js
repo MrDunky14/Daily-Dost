@@ -5,7 +5,6 @@ const firebaseConfig = {
   projectId: "daily-dost",
   storageBucket: "daily-dost.firebasestorage.app",
   messagingSenderId: "354533623697",
-  appId: "1:354533623697:web:c90b2f43923a686c66fc30",
   measurementId: "G-4F772YDC6Z"
 };
 
@@ -1338,32 +1337,47 @@ const signInWithGoogle = async () => {
 };
 const updateUserProfile = async (user) => {
   if (!user || user.isAnonymous) {
-    document.getElementById('user-avatar').src = 
-      'https://ui-avatars.com/api/?name=Guest&background=667eea&color=fff&size=128';
-    document.getElementById('user-name').innerText = 'Guest User';
+    // For anonymous users, set generic avatar
+    const avatar = document.getElementById('user-avatar');
+    const userName = document.getElementById('user-name');
+    const userLevel = document.getElementById('user-level');
+    
+    if (avatar) avatar.src = 'https://ui-avatars.com/api/?name=Guest&background=667eea&color=fff&size=128';
+    if (userName) userName.innerText = 'Guest User';
+    if (userLevel) userLevel.innerText = `Level ${userProfile.level || 1}`;
     return;
   }
   
+  // Update UI with Google account info
   const displayName = user.displayName || 'User';
   const photoURL = user.photoURL || 
     `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=667eea&color=fff&size=128`;
   
-  document.getElementById('user-avatar').src = photoURL;
-  document.getElementById('user-name').innerText = displayName;
+  const avatar = document.getElementById('user-avatar');
+  const userName = document.getElementById('user-name');
+  const userLevel = document.getElementById('user-level');
   
-  // Persist to Firestore
+  // Null checks to prevent errors
+  if (avatar) avatar.src = photoURL;
+  if (userName) userName.innerText = displayName;
+  if (userLevel) userLevel.innerText = `Level ${userProfile.level || 1}`;
+  
+  // Sync to Firestore for cross-device persistence
   try {
     const profileRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile/userProfile`);
     await setDoc(profileRef, {
-      displayName,
-      photoURL,
+      displayName: displayName,
+      photoURL: photoURL,
       email: user.email,
       lastUpdated: new Date().toISOString()
     }, { merge: true });
+    
+    console.log('Profile synced to Firestore');
   } catch (error) {
     console.error('Error syncing profile:', error);
   }
 };
+
 
 const handleProfileClick = () => {
   if (!auth.currentUser) {
