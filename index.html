@@ -146,9 +146,11 @@
                           alt="Profile" 
                           class="w-12 h-12 rounded-full border-2 border-primary cursor-pointer"
                           onclick="handleProfileClick()">
-
                     <div>
-                        <div class="font-bold text-sm" id="user-level">Level 1</div>
+                      <div id="user-name" class="font-semibold text-sm">Guest User</div>
+                      <div id="user-level" class="text-xs" style="color: var(--secondary)">Level 1</div>
+                    </div>
+                    <div>
                         <div class="w-24 bg-gray-200 dark:bg-slate-600 rounded-full h-2.5">
                             <div id="xp-bar" class="h-2.5 rounded-full" style="width: 0%; background-color: var(--xp-bar); transition: width 0.5s;"></div>
                         </div>
