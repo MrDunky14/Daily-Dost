@@ -15,16 +15,14 @@ const initialAuthToken = null;
 // --- Imports ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { 
-  getAuth, 
-  signInAnonymously, 
-  signInWithPopup,
-  linkWithPopup,
-  GoogleAuthProvider,
-  onAuthStateChanged, 
-  signInWithCustomToken 
+  getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, 
+  onAuthStateChanged, linkWithPopup, signInWithCredential
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-import { getFirestore, doc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, collection, query, writeBatch, getDocs, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { 
+  getFirestore, doc, setDoc, addDoc, updateDoc, deleteDoc, 
+  onSnapshot, collection, query, writeBatch, getDocs, where, getDoc
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- App State ---
 let app, db, auth, userId;
@@ -147,115 +145,96 @@ const initializeFirebase = async () => {
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         userId = user.uid;
+        console.log(`Authenticated: ${userId}, anonymous: ${user.isAnonymous}`);
         
-        // Update profile with user info (Google or anonymous)
-        updateUserProfile(user);
+        if (!user.isAnonymous) {
+          await updateUserProfile(user);
+        } else {
+          // Set generic avatar for anonymous users
+          document.getElementById('user-avatar').src = 
+            'https://ui-avatars.com/api/?name=Guest&background=667eea&color=fff&size=128';
+          document.getElementById('user-name').innerText = 'Guest User';
+        }
+        
         setupListeners();
         loadingOverlay.classList.add('hidden');
       } else {
-        // Sign in anonymously to start
-        const token = (typeof initialAuthToken !== 'undefined') ? initialAuthToken : null;
-        if (token) {
-          await signInWithCustomToken(auth, token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        // Sign in anonymously on first load
+        console.log('No user, signing in anonymously...');
+        await signInAnonymously(auth);
       }
     });
   } catch (error) {
     console.error("Firebase Init Error:", error);
-  }
-};
-const signInWithGoogle = async () => {
-  const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({
-    prompt: 'select_account'
-  });
-  
-  try {
-    const currentUser = auth.currentUser;
-    
-    // If user is anonymous, link the account to preserve data
-    if (currentUser && currentUser.isAnonymous) {
-      try {
-        const result = await linkWithPopup(currentUser, provider);
-        const user = result.user;
-        
-        showToast(`Account upgraded! Welcome, ${user.displayName}!`);
-        updateUserProfile(user);
-        
-        return user;
-      } catch (linkError) {
-        // Handle the case where Google account already exists
-        if (linkError.code === 'auth/credential-already-in-use') {
-          // The Google account is already linked to another account
-          const shouldMigrate = await showConfirmModal(
-            `This Google account is already registered. Do you want to sign in with it? (Your current anonymous data will be lost)`
-          );
-          
-          if (shouldMigrate) {
-            // Sign in with existing Google account
-            const result = await signInWithPopup(auth, provider);
-            showToast(`Signed in as ${result.user.displayName}`);
-            updateUserProfile(result.user);
-            return result.user;
-          } else {
-            return null;
-          }
-        }
-        throw linkError;
-      }
-    } else {
-      // User is not anonymous, just sign in
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      
-      showToast(`Welcome back, ${user.displayName}!`);
-      updateUserProfile(user);
-      
-      return user;
-    }
-  } catch (error) {
-    console.error("Google Sign-In Error:", error);
-    
-    if (error.code === 'auth/popup-closed-by-user') {
-      showToast("Sign-in cancelled");
-    } else {
-      showToast("Failed to sign in with Google");
-    }
-    
-    throw error;
+    showToast("Failed to initialize. Please refresh.");
+    loadingOverlay.classList.add('hidden');
   }
 };
 
-const updateUserProfile = (user) => {
-  if (!user) return;
-  
-  const avatar = document.getElementById('user-avatar');
-  const levelText = document.getElementById('user-level');
-  
-  // Update avatar based on account type
-  if (user.photoURL) {
-    // Google account with profile picture
-    avatar.src = user.photoURL;
-    avatar.alt = user.displayName || 'User Avatar';
-    avatar.style.border = '2px solid var(--accent)';
-  } else if (user.isAnonymous) {
-    // Anonymous user - keep placeholder
-    const level = userProfile.level || 1;
-    avatar.src = `https://placehold.co/40x40/${level > 5 ? 'a78bfa' : 'cbd5e1'}/${level > 5 ? 'ffffff' : '7c3aed'}?text=L${level}`;
-    avatar.alt = 'Anonymous User';
-    avatar.style.border = '2px solid var(--secondary)';
-  }
-  
-  // Update level text to include name if available
-  const level = userProfile.level || 1;
-  if (user.displayName && !user.isAnonymous) {
-    levelText.innerText = `${user.displayName} • Level ${level}`;
-  } else {
-    levelText.innerText = `Level ${level}`;
+const handleGoogleSignIn = async () => {
+  try {
+    loadingOverlay.classList.remove('hidden');
+    
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      showToast('Please wait...');
+      return;
+    }
+    
+    const isAnonymous = currentUser.isAnonymous;
+    const anonymousUid = isAnonymous ? currentUser.uid : null;
+    const hasData = isAnonymous ? await userHasData(anonymousUid) : false;
+    
+    const provider = new GoogleAuthProvider();
+    
+    if (isAnonymous && hasData) {
+      // Link anonymous account to Google
+      try {
+        const result = await linkWithPopup(currentUser, provider);
+        showToast('Account linked! Your data is preserved.');
+        await updateUserProfile(result.user);
+      } catch (linkError) {
+        // Google account already exists
+        if (linkError.code === 'auth/credential-already-in-use') {
+          const credential = GoogleAuthProvider.credentialFromError(linkError);
+          const result = await signInWithCredential(auth, credential);
+          const googleUid = result.user.uid;
+          
+          const googleHasData = await userHasData(googleUid);
+          
+          if (googleHasData) {
+            const keepOldData = confirm(
+              'Your Google account has existing data. Keep it? (Cancel to merge current data)'
+            );
+            
+            if (!keepOldData) {
+              await migrateUserData(anonymousUid, googleUid);
+              showToast('Data merged successfully!');
+            }
+          } else {
+            await migrateUserData(anonymousUid, googleUid);
+            showToast('Account upgraded! Data preserved.');
+          }
+          
+          await updateUserProfile(result.user);
+        } else {
+          throw linkError;
+        }
+      }
+    } else {
+      // Direct sign-in (no data to preserve)
+      const result = await signInWithPopup(auth, provider);
+      await updateUserProfile(result.user);
+      showToast('Welcome back!');
+    }
+  } catch (error) {
+    console.error('Sign-in error:', error);
+    showToast(`Sign-in failed: ${error.message}`);
+  } finally {
+    loadingOverlay.classList.add('hidden');
   }
 };
+
 
 const setupListeners = () => {
   const collections = {
@@ -329,7 +308,7 @@ const renderUserProfile = () => {
   document.getElementById('xp-text').innerText = `${xp}/${xpForNextLevel} XP`;
   document.getElementById('xp-bar').style.width = `${xpPercentage}%`;
 
-  // Update profile with current user data
+  // Update avatar if user is signed in
   if (auth.currentUser) {
     updateUserProfile(auth.currentUser);
   }
@@ -1210,46 +1189,33 @@ window.onload = () => {
   document.getElementById('gpa-target-input').addEventListener('change', (e) => {
     updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`), { targetGpa: parseFloat(e.target.value) });
   });
-  // Profile avatar click handler for Google sign-in
+  // Profile avatar click to sign in with Google
   document.getElementById('user-avatar').addEventListener('click', async () => {
-    const currentUser = auth.currentUser;
-    
-    if (!currentUser) {
-      showToast("Please wait, loading...");
-      return;
-    }
-    
-    if (currentUser.isAnonymous) {
-      // Anonymous user - offer to upgrade to Google account
-      const shouldUpgrade = await showConfirmModal(
-        'Upgrade to Google Account to save your progress permanently and sync across devices?'
-      );
-      
-      if (shouldUpgrade) {
-        try {
-          await signInWithGoogle();
-        } catch (error) {
-          console.error("Upgrade failed:", error);
-        }
+    if (!auth.currentUser) {
+      // User not signed in, show Google login
+      try {
+        await signInWithGoogle();
+      } catch (error) {
+        console.error("Sign in failed:", error);
       }
     } else {
-      // Already signed in with Google - show profile options
+      // User already signed in, could show profile options or sign out
       const signOut = await showConfirmModal(
-        `Signed in as ${currentUser.displayName || currentUser.email}. Do you want to sign out?`
+        `Signed in as ${auth.currentUser.displayName || auth.currentUser.email}. Do you want to sign out?`
       );
-      
       if (signOut) {
         await auth.signOut();
-        showToast("Signed out. Creating new anonymous session...");
-        // Will automatically create new anonymous account via onAuthStateChanged
+        showToast("Signed out successfully");
+        // Reset avatar to default
+        document.getElementById('user-avatar').src = 
+          'https://placehold.co/40x40/cbd5e1/7c3aed?text=?';
+        document.getElementById('user-level').innerText = 'Level 1';
       }
     }
   });
 
-  // Make avatar clickable
-  const avatar = document.getElementById('user-avatar');
-  avatar.style.cursor = 'pointer';
-  avatar.title = 'Click to manage account';
+  // Add cursor pointer to avatar to show it's clickable
+  document.getElementById('user-avatar').style.cursor = 'pointer';
 
 };
 
@@ -1346,6 +1312,111 @@ calcBtns.forEach(btn => {
 });
 
 updateCalcDisplay();
+
+const signInWithGoogle = async () => {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
+  
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    
+    // Show success message
+    showToast(`Welcome, ${user.displayName}!`);
+    
+    // Update UI with user info
+    updateUserProfile(user);
+    
+    return user;
+  } catch (error) {
+    console.error("Google Sign-In Error:", error);
+    showToast("Failed to sign in with Google");
+    throw error;
+  }
+};
+const updateUserProfile = async (user) => {
+  if (!user || user.isAnonymous) {
+    document.getElementById('user-avatar').src = 
+      'https://ui-avatars.com/api/?name=Guest&background=667eea&color=fff&size=128';
+    document.getElementById('user-name').innerText = 'Guest User';
+    return;
+  }
+  
+  const displayName = user.displayName || 'User';
+  const photoURL = user.photoURL || 
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=667eea&color=fff&size=128`;
+  
+  document.getElementById('user-avatar').src = photoURL;
+  document.getElementById('user-name').innerText = displayName;
+  
+  // Persist to Firestore
+  try {
+    const profileRef = doc(db, `artifacts/${appId}/users/${user.uid}/profile/userProfile`);
+    await setDoc(profileRef, {
+      displayName,
+      photoURL,
+      email: user.email,
+      lastUpdated: new Date().toISOString()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error syncing profile:', error);
+  }
+};
+
+const handleProfileClick = () => {
+  if (!auth.currentUser) {
+    showToast('Loading...');
+    return;
+  }
+  
+  if (auth.currentUser.isAnonymous) {
+    // Show sign-in modal
+    const modal = `
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+           onclick="this.remove()">
+        <div class="bg-surface p-6 rounded-lg shadow-xl max-w-sm mx-4" 
+             onclick="event.stopPropagation()">
+          <h3 class="text-xl font-bold mb-4">Sign In</h3>
+          <p class="text-secondary mb-4">
+            Sign in with Google to sync your data across devices!
+          </p>
+          <button onclick="handleGoogleSignIn(); this.closest('.fixed').remove()" 
+                  class="w-full bg-primary text-white py-3 rounded-lg hover:bg-opacity-90">
+            Sign in with Google
+          </button>
+          <button onclick="this.closest('.fixed').remove()" 
+                  class="w-full mt-3 py-2 text-secondary">Cancel</button>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modal);
+  } else {
+    // Show profile menu
+    const modal = `
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+           onclick="this.remove()">
+        <div class="bg-surface p-6 rounded-lg shadow-xl max-w-sm mx-4" 
+             onclick="event.stopPropagation()">
+          <div class="text-center mb-4">
+            <img src="${auth.currentUser.photoURL}" 
+                 class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-primary">
+            <h3 class="text-xl font-bold">${auth.currentUser.displayName}</h3>
+            <p class="text-sm text-secondary">${auth.currentUser.email}</p>
+          </div>
+          <button onclick="auth.signOut(); this.closest('.fixed').remove(); showToast('Signed out');" 
+                  class="w-full bg-red-500 text-white py-3 rounded-lg hover:bg-red-600">
+            Sign Out
+          </button>
+          <button onclick="this.closest('.fixed').remove()" 
+                  class="w-full mt-3 py-2 text-secondary">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modal);
+  }
+};
 
 
 // ============================================
