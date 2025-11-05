@@ -111,28 +111,61 @@ const showToast = (message) => {
   toast.style.backgroundColor = 'var(--primary)';
   toast.innerText = message;
   document.body.appendChild(toast);
+  animateToast(toast);
   setTimeout(() => {
     toast.style.animation = 'fade-out 0.5s forwards';
     setTimeout(() => toast.remove(), 500);
   }, 3000);
 };
 
-const switchView = (viewId) => {
+const switchViewWithAnimation = (viewId) => {
+  // Hide all views
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-  document.getElementById(viewId).classList.remove('hidden');
+  
+  // Show target view with null check
+  const targetView = document.getElementById(viewId);
+  if (!targetView) {
+    console.error(`View not found: ${viewId}`);
+    return;
+  }
+  targetView.classList.remove('hidden');
+  
+  // Update tab styling
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.style.color = 'var(--secondary)';
     btn.style.borderColor = 'transparent';
   });
+  
   const activeTab = document.getElementById(`tab-${viewId.split('-')[0]}`);
   if (activeTab) {
     activeTab.style.color = 'var(--primary)';
     activeTab.style.borderColor = 'var(--primary)';
   }
+  
   currentView = viewId;
+  
+  // Trigger specific view renders
   if (viewId === 'analytics-view') renderAnalytics();
   if (viewId === 'rewards-view') renderRewards();
+  
+  // Add animation after view is visible
+  setTimeout(() => {
+    const cards = targetView.querySelectorAll('.card');
+    if (cards.length > 0 && typeof anime !== 'undefined') {
+      anime({
+        targets: cards,
+        opacity: [0, 1],
+        translateY: [30, 0],
+        delay: anime.stagger(80),
+        duration: 600,
+        easing: 'easeOutCubic'
+      });
+    }
+  }, 50);
 };
+
+// Use the new function name
+const switchView = switchViewWithAnimation;
 
 // --- Firebase Initialization & Auth ---
 const initializeFirebase = async () => {
@@ -167,6 +200,79 @@ const initializeFirebase = async () => {
     console.error("Firebase Init Error:", error);
     showToast("Failed to initialize. Please refresh.");
     loadingOverlay.classList.add('hidden');
+  }
+};
+
+// Add this function to handle profile avatar clicks
+// Add this after initializeFirebase or in window.onload:
+document.addEventListener('DOMContentLoaded', () => {
+  const userAvatar = document.getElementById('user-avatar');
+  if (userAvatar) {
+    userAvatar.addEventListener('click', handleProfileClick);
+  }
+});
+
+const handleProfileClick = () => {
+  if (!auth || !auth.currentUser) {
+    showToast('Please wait, app is loading...');
+    return;
+  }
+  
+  if (auth.currentUser.isAnonymous) {
+    // Show sign-in modal for anonymous users
+    const modal = `
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+           onclick="this.remove()">
+        <div class="bg-surface p-6 rounded-lg shadow-xl max-w-sm w-full mx-4" 
+             onclick="event.stopPropagation()">
+          <h3 class="text-xl font-bold mb-4">Sign In</h3>
+          <p class="text-secondary mb-4">
+            Sign in with Google to sync your data across devices and never lose your progress!
+          </p>
+          <button onclick="handleGoogleSignIn(); this.closest('.fixed').remove()" 
+                  class="w-full bg-primary text-white py-3 rounded-lg hover:bg-opacity-90 
+                         flex items-center justify-center space-x-2">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            <span>Sign in with Google</span>
+          </button>
+          <button onclick="this.closest('.fixed').remove()" 
+                  class="w-full mt-3 py-2 text-secondary hover:text-text">
+            Cancel
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modal);
+  } else {
+    // Show profile menu for signed-in users
+    const modal = `
+      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+           onclick="this.remove()">
+        <div class="bg-surface p-6 rounded-lg shadow-xl max-w-sm w-full mx-4" 
+             onclick="event.stopPropagation()">
+          <div class="text-center mb-4">
+            <img src="${auth.currentUser.photoURL || 'https://ui-avatars.com/api/?name=User'}" 
+                 class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-primary">
+            <h3 class="text-xl font-bold">${auth.currentUser.displayName || 'User'}</h3>
+            <p class="text-sm text-secondary">${auth.currentUser.email || 'Anonymous User'}</p>
+          </div>
+          <button onclick="auth.signOut(); this.closest('.fixed').remove(); showToast('Signed out successfully');" 
+                  class="w-full bg-red-500 text-white py-3 rounded-lg hover:bg-red-600">
+            Sign Out
+          </button>
+          <button onclick="this.closest('.fixed').remove()" 
+                  class="w-full mt-3 py-2 text-secondary hover:text-text">
+            Close
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modal);
   }
 };
 
@@ -290,6 +396,7 @@ const renderDashboard = () => {
   renderDailyProgress();
   renderMentalHealthTrackers();
   renderSleepTracker();
+  animateDashboardItems();
 };
 
 const renderAnalytics = () => {
@@ -1378,61 +1485,6 @@ const updateUserProfile = async (user) => {
   }
 };
 
-
-const handleProfileClick = () => {
-  if (!auth.currentUser) {
-    showToast('Loading...');
-    return;
-  }
-  
-  if (auth.currentUser.isAnonymous) {
-    // Show sign-in modal
-    const modal = `
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
-           onclick="this.remove()">
-        <div class="bg-surface p-6 rounded-lg shadow-xl max-w-sm mx-4" 
-             onclick="event.stopPropagation()">
-          <h3 class="text-xl font-bold mb-4">Sign In</h3>
-          <p class="text-secondary mb-4">
-            Sign in with Google to sync your data across devices!
-          </p>
-          <button onclick="handleGoogleSignIn(); this.closest('.fixed').remove()" 
-                  class="w-full bg-primary text-white py-3 rounded-lg hover:bg-opacity-90">
-            Sign in with Google
-          </button>
-          <button onclick="this.closest('.fixed').remove()" 
-                  class="w-full mt-3 py-2 text-secondary">Cancel</button>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modal);
-  } else {
-    // Show profile menu
-    const modal = `
-      <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
-           onclick="this.remove()">
-        <div class="bg-surface p-6 rounded-lg shadow-xl max-w-sm mx-4" 
-             onclick="event.stopPropagation()">
-          <div class="text-center mb-4">
-            <img src="${auth.currentUser.photoURL}" 
-                 class="w-20 h-20 rounded-full mx-auto mb-3 border-2 border-primary">
-            <h3 class="text-xl font-bold">${auth.currentUser.displayName}</h3>
-            <p class="text-sm text-secondary">${auth.currentUser.email}</p>
-          </div>
-          <button onclick="auth.signOut(); this.closest('.fixed').remove(); showToast('Signed out');" 
-                  class="w-full bg-red-500 text-white py-3 rounded-lg hover:bg-red-600">
-            Sign Out
-          </button>
-          <button onclick="this.closest('.fixed').remove()" 
-                  class="w-full mt-3 py-2 text-secondary">Close</button>
-        </div>
-      </div>
-    `;
-    document.body.insertAdjacentHTML('beforeend', modal);
-  }
-};
-
-
 // ============================================
 // ANIMATION ENHANCEMENTS (Add to end of app.js)
 // ============================================
@@ -1475,24 +1527,6 @@ const initGSAPAnimations = () => {
   // Register ScrollTrigger
   gsap.registerPlugin(ScrollTrigger);
 
-  // Header fade in
-  gsap.from('.header-animate', {
-    y: -100,
-    opacity: 0,
-    duration: 0.8,
-    ease: 'power3.out'
-  });
-
-  // Float animation for cards
-  gsap.to('.card-hover', {
-    y: -5,
-    duration: 2,
-    ease: 'power1.inOut',
-    stagger: 0.2,
-    yoyo: true,
-    repeat: -1
-  });
-
   // XP Bar fill animation
   const xpBar = document.getElementById('xp-bar');
   if (xpBar) {
@@ -1524,24 +1558,6 @@ const initGSAPAnimations = () => {
   });
 };
 
-// Reinitialize animations when view changes
-const originalSwitchView = switchView;
-switchView = (viewId) => {
-  originalSwitchView(viewId);
-  
-  setTimeout(() => {
-    // Animate new view content
-    anime({
-      targets: `#${viewId} .card`,
-      opacity: [0, 1],
-      translateY: [30, 0],
-      delay: anime.stagger(80),
-      duration: 600,
-      easing: 'easeOutCubic'
-    });
-  }, 50);
-};
-
 // Initialize animations when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => {
@@ -1550,11 +1566,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 100);
 });
 
-// Reinitialize on data updates
-const originalRenderDashboard = renderDashboard;
-renderDashboard = () => {
-  originalRenderDashboard();
-  
+// Separate function for animations
+const animateDashboardItems = () => {
   setTimeout(() => {
     anime({
       targets: '.habit-item',
@@ -1586,35 +1599,28 @@ const animateHabitCompletion = (element) => {
 };
 
 // Enhanced toast animation
-const originalShowToast = showToast;
-showToast = (message) => {
-  const toast = document.createElement('div');
-  toast.className = 'fixed bottom-5 right-5 text-white p-4 rounded-xl shadow-2xl glass-effect';
-  toast.style.background = 'rgba(99, 102, 241, 0.9)';
-  toast.style.backdropFilter = 'blur(20px)';
-  toast.style.border = '1px solid rgba(255, 255, 255, 0.2)';
-  toast.innerText = message;
-  document.body.appendChild(toast);
-  
-  anime({
-    targets: toast,
-    translateY: [50, 0],
-    opacity: [0, 1],
-    duration: 500,
-    easing: 'easeOutCubic',
-    complete: () => {
-      setTimeout(() => {
-        anime({
-          targets: toast,
-          translateY: [0, -50],
-          opacity: [1, 0],
-          duration: 400,
-          easing: 'easeInCubic',
-          complete: () => toast.remove()
-        });
-      }, 3000);
-    }
-  });
+const animateToast = (toast) => {
+  setTimeout(() => {
+    anime({
+      targets: toast,
+      translateY: [50, 0],
+      opacity: [0, 1],
+      duration: 500,
+      easing: 'easeOutCubic'
+    });
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      anime({
+        targets: toast,
+        translateY: [0, -50],
+        opacity: [1, 0],
+        duration: 400,
+        easing: 'easeInCubic',
+        complete: () => toast.remove()
+      });
+    }, 3000);
+  }, 50);
 };
 // Skip GSAP/anime entrance animations inside analytics view to avoid layout thrash
 const analyticsView = document.getElementById('analytics-view');
