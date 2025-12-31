@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daily-Dost - Student Habit & Study Tracker</title>
+    <title>StudiOS - Student Habit & Study Tracker</title>
+
+    <link rel="manifest" href="manifest.json">
+
 
     <!-- Fonts + Icons (Template) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -207,12 +210,17 @@
                     <span class="hidden md:inline">Connect Cloud</span>
                 </button>
 
-                <button id="dark-mode-toggle" class="p-2 md:px-4 md:py-2 rounded-full text-xs font-bold bg-accent text-slate-900 hover:shadow-neon-accent transition-all hover:scale-105 inline-flex items-center gap-2 no-underline hover:no-underline border border-accent/50" type="button">
+                <button id="install-app-btn" class="hidden w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 rounded-full text-xs font-bold bg-tertiary/20 text-tertiary border border-tertiary/30 hover:bg-tertiary hover:text-white hover:shadow-neon-tertiary transition-all hover:scale-105 flex items-center justify-center gap-2 backdrop-blur-sm" type="button">
+                    <span class="material-symbols-outlined text-lg md:text-sm">download</span>
+                    <span class="hidden md:inline">Install App</span>
+                </button>
+
+                <button id="dark-mode-toggle" class="w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 rounded-full text-xs font-bold bg-accent text-slate-900 hover:shadow-neon-accent transition-all hover:scale-105 flex items-center justify-center gap-2 no-underline hover:no-underline border border-accent/50" type="button">
                     <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
                     <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
                     <span id="theme-text" class="hidden md:inline">NIGHT</span>
                 </button>
-                <button id="insomnia-toggle" class="p-2 md:px-4 md:py-2 rounded-full text-xs font-bold bg-white/10 text-text-muted border border-white/20 hover:border-primary hover:text-primary hover:shadow-neon transition-all hover:scale-105 inline-flex items-center gap-2 no-underline hover:no-underline backdrop-blur-sm" type="button" title="Insomnia Mode (Keep Screen On)">
+                <button id="insomnia-toggle" class="w-10 h-10 md:w-auto md:h-auto md:px-4 md:py-2 rounded-full text-xs font-bold bg-white/10 text-text-muted border border-white/20 hover:border-primary hover:text-primary hover:shadow-neon transition-all hover:scale-105 flex items-center justify-center gap-2 no-underline hover:no-underline backdrop-blur-sm" type="button" title="Insomnia Mode (Keep Screen On)">
                     <span class="material-symbols-outlined text-lg md:text-sm">visibility</span>
                     <span class="hidden md:inline">INSOMNIA</span>
                 </button>
@@ -687,8 +695,99 @@
     <!-- Modal Container -->
     <div id="modal-container" class="modal-overlay hidden"></div>
 
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+        <div class="glass-panel p-8 rounded-2xl max-w-md w-full text-center space-y-6 border border-primary/30 shadow-neon">
+            <h2 class="text-3xl font-bold font-display text-transparent bg-clip-text bg-gradient-to-r from-primary-light to-secondary-light">
+                Welcome to StudiOS
+            </h2>
+            <p class="text-text-muted">Your ultimate student habit & study tracker.</p>
+            
+            <div class="space-y-4">
+                <button id="google-login-btn" class="w-full py-3 px-4 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-gray-100 transition-all transform hover:scale-105">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6" alt="Google">
+                    Sign in with Google
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Install Guide Modal -->
+    <div id="install-guide-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+        <div class="glass-panel p-6 rounded-2xl max-w-2xl w-full border border-tertiary/30 shadow-neon-tertiary relative m-4">
+            <button id="close-install-guide" class="absolute top-4 right-4 text-text-muted hover:text-white">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            
+            <h2 class="text-2xl font-bold mb-6 text-center text-tertiary-light">How to Install StudiOS</h2>
+            
+            <!-- Direct Install Button (Hidden if not supported) -->
+            <div id="install-action-container" class="text-center mb-8 hidden">
+                 <button id="guide-install-btn" class="bg-tertiary text-background-dark font-bold py-3 px-8 rounded-xl shadow-neon-tertiary transition-all transform hover:scale-105 flex items-center gap-2 mx-auto">
+                    <span class="material-symbols-outlined">download</span>
+                    Install App Now
+                </button>
+                <p class="text-xs text-text-muted mt-2">or follow the manual instructions below</p>
+            </div>
+            
+            <div class="grid md:grid-cols-3 gap-6">
+                <!-- iOS -->
+                <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                    <div class="flex items-center gap-2 mb-3 text-white">
+                        <span class="material-symbols-outlined">ios_share</span>
+                        <h3 class="font-bold">iOS (Safari)</h3>
+                    </div>
+                    <ol class="text-sm text-text-muted space-y-2 list-decimal list-inside">
+                        <li>Tap the <strong>Share</strong> button <span class="material-symbols-outlined text-xs align-middle">ios_share</span></li>
+                        <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+                        <li>Tap <strong>Add</strong> in the top right</li>
+                    </ol>
+                </div>
+
+                <!-- Android -->
+                <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                    <div class="flex items-center gap-2 mb-3 text-white">
+                        <span class="material-symbols-outlined">android</span>
+                        <h3 class="font-bold">Android</h3>
+                    </div>
+                    <ol class="text-sm text-text-muted space-y-2 list-decimal list-inside">
+                        <li>Tap the <strong>Menu</strong> (3 dots) <span class="material-symbols-outlined text-xs align-middle">more_vert</span></li>
+                        <li>Tap <strong>Install App</strong> or <strong>Add to Home Screen</strong></li>
+                        <li>Follow the prompts</li>
+                    </ol>
+                </div>
+
+                <!-- Desktop -->
+                <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                    <div class="flex items-center gap-2 mb-3 text-white">
+                        <span class="material-symbols-outlined">computer</span>
+                        <h3 class="font-bold">Desktop</h3>
+                    </div>
+                    <ol class="text-sm text-text-muted space-y-2 list-decimal list-inside">
+                        <li>Look for the install icon <span class="material-symbols-outlined text-xs align-middle">download</span> in the address bar</li>
+                        <li>Click <strong>Install</strong></li>
+                        <li>Or use Chrome menu &gt; Install StudiOS</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Firebase SDKs -->
     <script type="module" src="./app.js"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then(registration => {
+              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            }, err => {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+        });
+      }
+    </script>
+
     <script>
       (function () {
         const QUOTES = [

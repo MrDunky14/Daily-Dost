@@ -1,29 +1,17 @@
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyDaAjvHoTMe18sy1YOomGjz7_cck9xX6xU",
-  authDomain: "daily-dost.firebaseapp.com",
-  projectId: "daily-dost",
-  storageBucket: "daily-dost.firebasestorage.app",
-  messagingSenderId: "354533623697",
-  measurementId: "G-4F772YDC6Z"
-};
-
-const appId = firebaseConfig.projectId;
-
 // --- Imports ---
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { 
-  getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, 
-  onAuthStateChanged, linkWithPopup, signInWithCredential, updateProfile
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  app, auth, db, 
+  signInAnonymously, signInWithPopup, GoogleAuthProvider, 
+  onAuthStateChanged, linkWithPopup, signInWithCredential, updateProfile,
+  doc, setDoc, addDoc, updateDoc, deleteDoc, 
+  onSnapshot, collection, query, writeBatch, getDocs, where, getDoc 
+} from "./services/firebase.js";
 
-import { 
-  getFirestore, doc, setDoc, addDoc, updateDoc, deleteDoc, 
-  onSnapshot, collection, query, writeBatch, getDocs, where, getDoc
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+const appId = "daily-dost";
 
 // --- App State ---
-let app, db, auth, userId;
+let userId;
+// app, db, auth are imported constants
 let habits = [], habitLogs = {}, achievements = [], assignments = [], grades = [], sleepLogs = {}, stickyNotes = [], expenses = [];
 let userProfile = { level: 1, xp: 0, targetGpa: 3.5, dailyLimit: 200 };
 let currentView = 'dashboard-view';
@@ -250,14 +238,63 @@ const switchViewWithAnimation = (viewId) => {
 // Use the new function name
 const switchView = switchViewWithAnimation;
 
+const setupLoginListeners = () => {
+    const googleBtn = document.getElementById('google-login-btn');
+    const guestBtn = document.getElementById('guest-login-btn');
+
+    if (googleBtn) {
+        googleBtn.onclick = async () => {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Google Sign-In Error:", error);
+                showToast("Google Sign-In failed: " + error.message, "error");
+            }
+        };
+    }
+
+    if (guestBtn) {
+        guestBtn.onclick = async () => {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Guest Sign-In Error:", error);
+                showToast("Guest Sign-In failed.", "error");
+            }
+        };
+    }
+};
+
+const showWelcomeGuide = () => {
+    const guideSteps = [
+        "Welcome to StudiOS! 🚀",
+        "Track your habits, assignments, and grades here.",
+        "Use the Pomodoro timer to stay focused.",
+        "Good luck with your studies!"
+    ];
+    
+    let step = 0;
+    const showStep = () => {
+        if (step < guideSteps.length) {
+            showToast(guideSteps[step], "info");
+            step++;
+            setTimeout(showStep, 3000);
+        }
+    };
+    showStep();
+};
+
 // --- Firebase Initialization & Auth ---
 const initializeFirebase = async () => {
   try {
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    auth = getAuth(app);
+    setupLoginListeners();
+
     onAuthStateChanged(auth, async (user) => {
+      const loginModal = document.getElementById('login-modal');
+      
       if (user) {
+        if (loginModal) loginModal.classList.add('hidden');
         userId = user.uid;
         console.log(`Authenticated: ${userId}, anonymous: ${user.isAnonymous}`);
         const syncText = document.getElementById('sync-status-text');
@@ -266,6 +303,7 @@ const initializeFirebase = async () => {
           const { isNew } = await updateUserProfile(user);
           if (isNew) {
              showAvatarPickerModal();
+             showWelcomeGuide();
           }
           if(syncText) syncText.innerText = "Cloud Sync Active • All Data Secured";
           document.getElementById('cloud-sync-btn')?.classList.add('hidden');
@@ -281,25 +319,20 @@ const initializeFirebase = async () => {
           }
           
           if(syncText) syncText.innerText = "Guest Mode • Data on this device only";
+          
+          // Check if this is the very first guest session
+          const isFirstGuest = !localStorage.getItem('hasVisited');
+          if (isFirstGuest) {
+              localStorage.setItem('hasVisited', 'true');
+              showWelcomeGuide();
+          }
         }
         setupListeners();
         loadingOverlay.classList.add('hidden');
       } else {
-        // No user is signed in.
-        if (shouldAutoLogin) {
-            console.log("No user found. Signing in anonymously...");
-            try {
-              await signInAnonymously(auth);
-            } catch (error) {
-              console.error("Anonymous sign-in failed:", error);
-              showToast("Authentication failed. Please refresh.");
-              loadingOverlay.classList.add('hidden');
-            }
-        } else {
-            console.log("Manual logout detected. Waiting for user action.");
-            loadingOverlay.classList.add('hidden');
-            showLoginModal(true); // Show modal with Guest option
-        }
+        // No user is signed in. Show Login Modal.
+        if (loginModal) loginModal.classList.remove('hidden');
+        loadingOverlay.classList.add('hidden');
       }
     });
   } catch (error) {
@@ -3190,3 +3223,76 @@ if (analyticsView) {
 }
 
 console.log('🎨 Animation enhancements loaded!');
+
+// --- PWA Installation Logic ---
+let deferredPrompt;
+const installBtn = document.getElementById('install-app-btn');
+const installGuideModal = document.getElementById('install-guide-modal');
+const closeInstallGuide = document.getElementById('close-install-guide');
+const guideInstallBtn = document.getElementById('guide-install-btn');
+const installActionContainer = document.getElementById('install-action-container');
+
+// Check if app is already installed (standalone mode)
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+if (installBtn && !isStandalone) {
+    // Show button by default for all users (so iOS users see it too)
+    installBtn.classList.remove('hidden');
+    
+    installBtn.addEventListener('click', () => {
+        // Always show the guide modal first
+        if (installGuideModal) installGuideModal.classList.remove('hidden');
+    });
+}
+
+// Handle "Install App Now" button inside the guide
+if (guideInstallBtn) {
+    guideInstallBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            deferredPrompt = null;
+            // Hide button after use
+            if (installActionContainer) installActionContainer.classList.add('hidden');
+            // Close modal
+            if (installGuideModal) installGuideModal.classList.add('hidden');
+        }
+    });
+}
+
+// Close Guide Modal
+if (closeInstallGuide && installGuideModal) {
+    closeInstallGuide.addEventListener('click', () => {
+        installGuideModal.classList.add('hidden');
+    });
+    
+    // Close on click outside
+    installGuideModal.addEventListener('click', (e) => {
+        if (e.target === installGuideModal) {
+            installGuideModal.classList.add('hidden');
+        }
+    });
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent the mini-infobar from appearing on mobile
+  e.preventDefault();
+  // Stash the event so it can be triggered later.
+  deferredPrompt = e;
+  console.log('beforeinstallprompt fired');
+  
+  // Show the direct install button inside the guide
+  if (installActionContainer) installActionContainer.classList.remove('hidden');
+});
+
+window.addEventListener('appinstalled', () => {
+  // Hide the install button once installed
+  if (installBtn) installBtn.classList.add('hidden');
+  if (installGuideModal) installGuideModal.classList.add('hidden');
+  deferredPrompt = null;
+  console.log('PWA was installed');
+  showToast('StudiOS installed successfully!', 'success');
+});
+
+

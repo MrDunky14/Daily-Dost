@@ -1,13 +1,18 @@
-# Daily-Dost 🎓✨
+# StudiOS 🎓✨
 
-**Daily-Dost** is a comprehensive Student Habit & Study Tracker designed to help students manage their daily lives, studies, and well-being in a gamified and engaging way.
+**StudiOS** (formerly Daily-Dost) is a comprehensive Student Habit & Study Tracker designed to help students manage their daily lives, studies, and well-being in a gamified and engaging way.
 
-![Daily-Dost Banner](https://via.placeholder.com/1200x400?text=Daily-Dost+Student+Tracker) 
+![StudiOS Banner](https://via.placeholder.com/1200x400?text=StudiOS+Student+Tracker) 
 *(Replace with actual screenshot)*
 
 ## 🚀 Features
 
-Daily-Dost combines productivity tools with gamification to keep you motivated:
+StudiOS combines productivity tools with gamification to keep you motivated:
+
+### 📱 PWA Support
+- **Installable**: Add StudiOS to your home screen as a native app.
+- **Offline Mode**: Access your data and tools even without an internet connection.
+
 
 ### 📊 Productivity & Tracking
 - **Habit Tracker**: Create and track habits across categories like Study, Reading, Health, and Mindfulness.
