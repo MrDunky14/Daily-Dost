@@ -409,6 +409,12 @@ const migrateUserData = async (user) => {
 const initializeFirebase = async () => {
   try {
     setupLoginListeners();
+    const closeBtn = document.getElementById("close-login-modal-btn");
+    const loginModal = document.getElementById("login-modal");
+
+    closeBtn?.addEventListener("click", () => {
+      loginModal?.classList.add("hidden");
+    });
 
     onAuthStateChanged(auth, async (user) => {
       const loginModal = document.getElementById('login-modal');

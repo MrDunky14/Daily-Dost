@@ -157,7 +157,7 @@
                 }
         </style>
 </head>
-<body class="font-display bg-background-light text-text-default transition-colors duration-300 lofi-grain min-h-screen flex flex-col selection:bg-primary selection:text-white pb-24 relative overflow-x-hidden">
+<body class="font-display transition-colors duration-300 lofi-grain min-h-screen flex flex-col selection:bg-primary selection:text-white pb-24 relative overflow-x-hidden">
 
         <!-- Ambient Glow Effects (Template) -->
         <div class="fixed top-[-5%] left-[-5%] w-[30%] h-[30%] rounded-full bg-primary/20 blur-[100px] pointer-events-none z-[-1]"></div>
@@ -171,7 +171,7 @@
     </div>
 
     <!-- Header (Template look, existing IDs preserved) -->
-    <header class="sticky top-4 z-50 mx-auto w-[95%] max-w-7xl bg-background-light/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2 shadow-lg transition-all duration-300">
+    <header class="sticky top-4 z-50 mx-auto w-[95%] max-w-7xl glass-panel backdrop-blur-xl border border-white/10 rounded-full px-4 py-2 shadow-lg transition-all duration-300">
         <div class="flex items-center justify-between gap-4">
             <div class="flex items-center gap-4">
                 <!-- Avatar with XP Ring -->
@@ -385,7 +385,7 @@
                     <!-- Inspirational Quote (IDs preserved for existing quote script) -->
                     <section id="motivational-quotes" class="glass-panel rounded-3xl p-8 flex flex-col justify-center gap-4 transition-all duration-300 relative overflow-hidden group hover:shadow-neon card-large">
                         <div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: repeating-linear-gradient(45deg, #8b5cf6 0, #8b5cf6 1px, transparent 0, transparent 50%); background-size: 10px 10px;"></div>
-                        <div class="absolute inset-0 bg-gradient-to-t from-background-light/80 to-transparent"></div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-glass-panel to-transparent"></div>
                         <div class="flex items-center gap-2 mb-2 z-10">
                             <span class="h-2.5 w-2.5 rounded-full bg-primary animate-pulse shadow-neon"></span>
                             <span class="text-xs uppercase text-primary font-bold tracking-widest drop-shadow-md">Data Log</span>
@@ -708,7 +708,7 @@
 
     <!-- Bottom Navigation (Floating Glass Bar) -->
     <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-        <nav class="flex items-center gap-2 p-2 rounded-full border border-white/10 bg-background-dark/80 backdrop-blur-2xl shadow-2xl shadow-black/50 ring-1 ring-white/5" aria-label="Primary">
+        <nav class="flex items-center gap-2 p-2 rounded-full border border-white/10 glass-panel backdrop-blur-2xl shadow-2xl shadow-black/50 ring-1 ring-white/5" aria-label="Primary">
             
             <button id="tab-dashboard" class="tab-btn group relative flex items-center gap-2 px-5 py-3 rounded-full transition-all duration-300 bg-primary/20 text-primary shadow-[0_0_15px_rgba(139,92,246,0.3)] border border-primary/30" type="button">
                 <span class="material-symbols-outlined text-xl group-hover:scale-110 transition-transform">home</span>
@@ -747,6 +747,9 @@
                 <button id="google-login-btn" class="w-full py-3 px-4 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-gray-100 transition-all transform hover:scale-105">
                     <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6" alt="Google">
                     Sign in with Google
+                </button>
+                <button id="close-login-modal-btn" type="button">
+                    Close
                 </button>
             </div>
         </div>

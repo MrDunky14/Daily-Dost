@@ -41,34 +41,34 @@
 }
 
 [data-theme='light'] {
-  /* 2025 "Morning Mist" Mesh Gradient Background */
-  --background: radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(34, 211, 238, 0.12) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(52, 211, 153, 0.1) 0px, transparent 50%),
-                radial-gradient(at 0% 100%, rgba(139, 92, 246, 0.08) 0px, transparent 50%),
-                linear-gradient(135deg, #fdfbff 0%, #f3f4f6 100%);
+  /* Soft gradient background matching the reference */
+  --background: linear-gradient(135deg, #f5f7fa 0%, #eef1f5 100%);
   
-  --background-secondary: rgba(255, 255, 255, 0.5);
-  --foreground: #1e1b4b; /* Deep Indigo for maximum readability */
-  --secondary: #475569;
+  --background-secondary: rgba(255, 255, 255, 0.6);
+  --foreground: #2d3748; /* Softer dark gray for better readability */
+  --secondary: #64748b; /* Muted slate for secondary text */
   
-  /* Refined Glassmorphism - Higher blur, lower opacity */
-  --card-background: rgba(255, 255, 255, 0.45);
-  --card-border: rgba(255, 255, 255, 0.8);
-  --glass-bg: rgba(255, 255, 255, 0.3);
-  --glass-border: rgba(255, 255, 255, 0.7);
+  /* Refined card styling with subtle shadows */
+  --card-background: rgba(255, 255, 255, 0.85);
+  --card-border: rgba(226, 232, 240, 0.8);
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(226, 232, 240, 0.9);
   
-  /* Vibrant Accents adapted for Light UI */
-  --primary: #7c3aed;
+  /* Color palette from reference image */
+  --primary: #8b5cf6; /* Purple/lavender for progress rings */
+  --primary-dark: #7c3aed;
   --primary-light: #a78bfa;
-  --accent: #06b6d4;
-  --accent-secondary: #10b981;
+  --primary-foreground: #ffffff;
+  --accent: #22d3ee; /* Cyan for primary buttons */
+  --accent-secondary: #10b981; /* Emerald green */
+  --accent-mint: #34d399; /* Mint for selected states */
+  --accent-yellow: #fbbf24; /* Gold/yellow for coins */
   
-  /* Primary-tinted shadows for organic "Liquid" depth */
-  --shadow-sm: 0 2px 8px rgba(124, 58, 237, 0.05);
-  --shadow-md: 0 8px 32px rgba(124, 58, 237, 0.08);
-  --shadow-lg: 0 16px 48px rgba(124, 58, 237, 0.12);
-  --shadow-glow: 0 0 25px rgba(124, 58, 237, 0.15);
+  /* Soft, subtle shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.1);
 }
 
 * {
@@ -85,6 +85,23 @@ body {
               color 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-x: hidden;
   position: relative;
+}
+
+/* Light mode body adjustments */
+[data-theme='light'] body {
+  color: var(--foreground);
+}
+
+[data-theme='light'] h1,
+[data-theme='light'] h2,
+[data-theme='light'] h3,
+[data-theme='light'] h4 {
+  color: #1e293b;
+}
+
+[data-theme='light'] p,
+[data-theme='light'] span {
+  color: #475569;
 }
 
 /* Animated Background Gradient */
@@ -127,36 +144,88 @@ body::before {
 
 [data-theme='light'] .card,
 [data-theme='light'] .glass-panel {
-  backdrop-filter: blur(40px) saturate(160%); 
-  -webkit-backdrop-filter: blur(40px) saturate(160%);
-  box-shadow: var(--shadow-md), 
-              inset 0 0 0 1px var(--card-border); /* Inner border for high-end crispness */
+  backdrop-filter: blur(20px) saturate(120%); 
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--card-border);
 }
 
-/* Enhanced Liquid appearance for Light Mode Burnout Meter */
+/* Enhanced appearance for Light Mode */
 [data-theme='light'] #burnout-liquid {
-  box-shadow: inset 0 4px 12px rgba(255, 255, 255, 0.5),
-              0 0 15px rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 2px 8px rgba(139, 92, 246, 0.15),
+              0 0 10px rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.2);
 }
 
 [data-theme='light'] #burnout-percentage {
-  color: #1e1b4b; 
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  color: #2d3748; 
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
 }
 
-/* Ensure inputs and section titles stand out on glass */
+/* Ensure inputs and section titles match the clean aesthetic */
 [data-theme='light'] .input-focus, 
 [data-theme='light'] input, 
 [data-theme='light'] select {
-  background: rgba(255, 255, 255, 0.6);
-  color: #1e1b4b;
-  border-color: rgba(124, 58, 237, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  color: #2d3748;
+  border-color: rgba(226, 232, 240, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='light'] input:focus,
+[data-theme='light'] select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
 }
 
 [data-theme='light'] .section-title {
-  color: #1e1b4b;
-  text-shadow: 0 2px 4px rgba(124, 58, 237, 0.05);
+  color: #1e293b;
+  text-shadow: none;
+  font-weight: 700;
+}
+
+/* Light mode button styling matching reference image */
+[data-theme='light'] .btn-animate,
+[data-theme='light'] button[class*="bg-"] {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 2px 8px rgba(34, 211, 238, 0.25);
+  border: none;
+}
+
+[data-theme='light'] .btn-animate:hover,
+[data-theme='light'] button[class*="bg-"]:hover {
+  background: #06b6d4;
+  box-shadow: 0 4px 12px rgba(34, 211, 238, 0.35);
+  transform: translateY(-2px);
+}
+
+/* Light mode habit items and cards */
+[data-theme='light'] .habit-item {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='light'] .habit-item:hover {
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+/* Progress bars in light mode */
+[data-theme='light'] .progress-bar-animate {
+  background: rgba(226, 232, 240, 0.5);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* Selected/active states with mint color */
+[data-theme='light'] .selected,
+[data-theme='light'] [aria-selected="true"],
+[data-theme='light'] .active {
+  background: rgba(52, 211, 153, 0.15);
+  border-color: var(--accent-mint);
+  color: #047857;
 }
 
 /* Calculator button specific styles (override defaults when needed) */
@@ -205,13 +274,10 @@ body::before {
 }
 
 /* Glass Effect for Overlays */
-.glass-effect {
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+.glass-panel {
+  background: var(--glass-bg) !important;
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--shadow-md);
 }
 
 /* Smooth Habit Item Animations */
@@ -492,6 +558,49 @@ body::before {
   transform: scale(0.95);
 }
 
+[data-theme="light"] .text-text-default { color: #1e293b !important; }
+[data-theme="light"] .text-text-muted { color: #64748b !important; }
+
+/* Light mode mood button styling */
+[data-theme='light'] .mood-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme='light'] .mood-btn:hover {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: var(--accent-mint);
+  box-shadow: 0 4px 12px rgba(52, 211, 153, 0.2);
+}
+
+[data-theme='light'] .mood-btn[data-mood="happy"] {
+  background: rgba(52, 211, 153, 0.15);
+  border-color: var(--accent-mint);
+  box-shadow: 0 2px 8px rgba(52, 211, 153, 0.25);
+}
+
+/* Light mode stress level buttons */
+[data-theme='light'] button[class*="stress"],
+[data-theme='light'] .stress-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(226, 232, 240, 0.8);
+  color: #475569;
+}
+
+[data-theme='light'] button[class*="stress"]:hover,
+[data-theme='light'] .stress-btn:hover {
+  background: rgba(34, 211, 238, 0.1);
+  border-color: var(--accent);
+}
+
+[data-theme='light'] .selected[class*="stress"],
+[data-theme='light'] .stress-btn.selected {
+  background: rgba(34, 211, 238, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Mood Emoji Animation */
 .mood-emoji-animate {
   display: inline-block;
@@ -744,6 +853,20 @@ body::before {
   overflow-y: auto;
   animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   position: relative;
+}
+
+/* Light mode modal styling */
+[data-theme='light'] .modal-overlay {
+  background-color: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(12px);
+}
+
+[data-theme='light'] .modal-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 
+              0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 /* Input Number Spinners */
