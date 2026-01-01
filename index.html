@@ -564,23 +564,28 @@
 
                     <!-- CGPA Simulator -->
                     <div class="glass-panel rounded-3xl p-6 mt-6 transition-all duration-300 hover:shadow-neon-tertiary">
-                        <h3 class="text-xl font-bold text-text-default mb-4 flex items-center gap-2">
-                            🎓 CGPA Simulator
-                            <span class="text-xs font-normal px-3 py-1 rounded-full bg-tertiary/20 text-tertiary border border-tertiary/50">What-If Calculator</span>
-                        </h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-text-default flex items-center gap-2">
+                                🎓 CGPA Simulator
+                                <span class="text-xs font-normal px-3 py-1 rounded-full bg-tertiary/20 text-tertiary border border-tertiary/50">What-If Calculator</span>
+                            </h3>
+                            <button id="toggle-calc-mode-btn" class="text-xs font-bold px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-text-muted hover:text-white transition-all border border-glass-border">
+                                Switch to Percentage %
+                            </button>
+                        </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div id="cgpa-calc-content" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <!-- Left: Controls -->
                             <div class="md:col-span-2 space-y-4">
                                 <!-- Previous Semester Data -->
                                 <div class="flex flex-col sm:flex-row gap-4 mb-4 p-3 bg-white/5 rounded-xl border border-glass-border">
                                     <div class="flex-1">
                                         <label class="text-xs text-text-muted block mb-1">Prev. Sem CGPA</label>
-                                        <input type="number" id="prev-cgpa-input" step="0.01" min="0" max="10" placeholder="0.00" class="w-full bg-transparent border-b border-glass-border text-text-default focus:border-primary outline-none text-sm py-1" onchange="window.calculateCGPA()">
+                                        <input type="number" id="prev-cgpa-input" step="0.01" min="0" max="10" placeholder="0.00" class="w-full bg-transparent border-b border-glass-border text-text-default focus:border-primary outline-none text-sm py-1" onchange="window.calculateCGPA(); saveCGPASubjects()">
                                     </div>
                                     <div class="flex-1">
                                         <label class="text-xs text-text-muted block mb-1">Prev. Sem Credits</label>
-                                        <input type="number" id="prev-credits-input" min="0" placeholder="0" class="w-full bg-transparent border-b border-glass-border text-text-default focus:border-primary outline-none text-sm py-1" onchange="window.calculateCGPA()">
+                                        <input type="number" id="prev-credits-input" min="0" placeholder="0" class="w-full bg-transparent border-b border-glass-border text-text-default focus:border-primary outline-none text-sm py-1" onchange="window.calculateCGPA(); saveCGPASubjects()">
                                     </div>
                                 </div>
 
@@ -603,6 +608,28 @@
                                 <div class="text-sm text-text-muted mb-2">Projected CGPA</div>
                                 <div id="projected-cgpa" class="text-5xl font-bold text-primary transition-all duration-300">0.00</div>
                                 <div class="text-xs text-text-muted mt-3 text-center">Adjust sliders to see impact</div>
+                            </div>
+                        </div>
+
+                        <!-- Percentage Calculator Content (Hidden by default) -->
+                        <div id="percentage-calc-content" class="hidden space-y-6 animate-fade-in-up">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-4">
+                                    <div class="flex flex-col gap-2">
+                                        <label class="text-sm font-medium text-text-muted">Total Marks Obtained</label>
+                                        <input type="number" id="total-marks-obtained" class="w-full p-4 rounded-xl border border-glass-border bg-white/5 text-text-default focus:border-tertiary focus:ring-1 focus:ring-tertiary outline-none text-lg" placeholder="e.g. 450">
+                                    </div>
+                                    <div class="flex flex-col gap-2">
+                                        <label class="text-sm font-medium text-text-muted">Total Max Marks</label>
+                                        <input type="number" id="total-max-marks" class="w-full p-4 rounded-xl border border-glass-border bg-white/5 text-text-default focus:border-tertiary focus:ring-1 focus:ring-tertiary outline-none text-lg" placeholder="e.g. 500">
+                                    </div>
+                                    <button id="calc-percentage-btn" class="w-full py-4 rounded-xl font-bold text-white bg-tertiary shadow-neon-tertiary hover:bg-tertiary/90 transition-all text-lg" type="button">Calculate Percentage</button>
+                                </div>
+                                <div class="flex flex-col items-center justify-center bg-white/5 border border-glass-border rounded-2xl p-6 h-full min-h-[200px]">
+                                    <div class="text-sm text-text-muted mb-2">Your Percentage</div>
+                                    <div id="percentage-value" class="text-6xl font-bold text-tertiary transition-all duration-300">0%</div>
+                                    <div id="percentage-grade" class="text-lg font-medium text-text-muted mt-3 text-center">--</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -628,6 +655,19 @@
                 <div class="glass-panel rounded-3xl p-6 md:p-8 transition-all duration-300 hover:shadow-neon-tertiary">
                     <h2 class="text-2xl font-bold text-text-default mb-6">Achievements</h2>
                     <div id="achievements-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+                </div>
+
+                <!-- Review Developer Section -->
+                <div class="glass-panel rounded-3xl p-6 md:p-8 text-center transition-all duration-300 hover:shadow-neon">
+                    <div class="text-4xl mb-4">⭐</div>
+                    <h2 class="text-2xl font-bold text-text-default mb-3">Review Developer</h2>
+                    <p class="text-text-muted mb-6 text-sm max-w-2xl mx-auto">
+                        Enjoying the app? Your reviews help us improve and reach more students!
+                    </p>
+                    <button id="write-review-btn" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-accent text-slate-900 font-bold hover:bg-accent-light transition-all transform hover:scale-105 no-underline">
+                        <span class="material-symbols-outlined">rate_review</span>
+                        Write a Review
+                    </button>
                 </div>
 
                 <!-- Donation Section -->

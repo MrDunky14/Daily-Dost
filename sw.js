@@ -1,4 +1,4 @@
-const CACHE_NAME = 'studios-v1';
+const CACHE_NAME = 'studios-v2';
 const urlsToCache = [
   './',
   './index.html',
@@ -20,11 +20,53 @@ self.addEventListener('install', (event) => {
   );
 });
 
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cache => {
+          if (cache !== CACHE_NAME) {
+            return caches.delete(cache);
+          }
+        })
+      );
+    })
+  );
+});
+
 self.addEventListener('fetch', (event) => {
+  const requestUrl = new URL(event.request.url);
+  
+  // Stale-While-Revalidate for HTML, JS, CSS (Mutable App Files)
+  if (requestUrl.pathname.endsWith('.html') || 
+      requestUrl.pathname.endsWith('.js') || 
+      requestUrl.pathname.endsWith('.css') ||
+      requestUrl.pathname === '/') {
+    
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cachedResponse = await cache.match(event.request);
+        const networkFetch = fetch(event.request).then((response) => {
+          // Update cache with new version
+          if (response && response.status === 200 && response.type === 'basic') {
+             cache.put(event.request, response.clone());
+          }
+          return response;
+        }).catch(() => {
+           // Network failed, nothing to do (cache was already returned if available)
+        });
+
+        // Return cached response immediately if available, otherwise wait for network
+        return cachedResponse || networkFetch;
+      })
+    );
+    return;
+  }
+
+  // Cache-First for everything else (Images, Fonts, etc.)
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Cache Hit - return response
         if (response) {
           return response;
         }

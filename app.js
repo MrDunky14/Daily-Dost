@@ -66,6 +66,19 @@ const getDateString = (date) => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 // Force a fixed size for a Chart.js canvas that shows the full graph
 const setFixedChartSize = (canvas, heightPx) => {
   if (!canvas) return;
@@ -267,22 +280,129 @@ const setupLoginListeners = () => {
 };
 
 const showWelcomeGuide = () => {
-    const guideSteps = [
-        "Welcome to StudiOS! 🚀",
-        "Track your habits, assignments, and grades here.",
-        "Use the Pomodoro timer to stay focused.",
-        "Good luck with your studies!"
-    ];
+    const modalHTML = `
+    <div class="modal-content w-full max-w-2xl mx-auto p-0 overflow-hidden animate-fade-in-up">
+      <div class="bg-primary p-6 text-white text-center">
+        <h2 class="text-2xl font-bold mb-2">Welcome to StudiOS! 🚀</h2>
+        <p class="opacity-90">Your ultimate student companion.</p>
+      </div>
+      
+      <div class="p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+        <div class="flex gap-4 items-start">
+            <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-2xl shrink-0">📊</div>
+            <div>
+                <h3 class="font-bold text-lg">Track Everything</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Log habits, assignments, grades, and expenses in one place.</p>
+            </div>
+        </div>
+        
+        <div class="flex gap-4 items-start">
+            <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-2xl shrink-0">🍅</div>
+            <div>
+                <h3 class="font-bold text-lg">Focus Garden</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Use the Pomodoro timer to grow your virtual garden while you study.</p>
+            </div>
+        </div>
+
+        <div class="flex gap-4 items-start">
+            <div class="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-2xl shrink-0">📈</div>
+            <div>
+                <h3 class="font-bold text-lg">Smart Analytics</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Visualize your sleep, mood, and academic performance trends.</p>
+            </div>
+        </div>
+
+        <div class="flex gap-4 items-start">
+            <div class="w-12 h-12 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center text-2xl shrink-0">🏆</div>
+            <div>
+                <h3 class="font-bold text-lg">Gamified Growth</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">Earn XP, level up, and unlock achievements as you stay consistent.</p>
+            </div>
+        </div>
+      </div>
+      
+      <div class="p-4 border-t border-gray-100 dark:border-slate-700 flex justify-end">
+        <button id="close-welcome-btn" class="px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/30 hover:scale-105 transition-transform w-full sm:w-auto">
+            Let's Get Started!
+        </button>
+      </div>
+    </div>`;
+
+    modalContainer.innerHTML = modalHTML;
+    modalContainer.classList.remove('hidden');
+    modalContainer.classList.add('flex');
     
-    let step = 0;
-    const showStep = () => {
-        if (step < guideSteps.length) {
-            showToast(guideSteps[step], "info");
-            step++;
-            setTimeout(showStep, 3000);
-        }
-    };
-    showStep();
+    document.getElementById('close-welcome-btn').addEventListener('click', () => {
+        modalContainer.classList.add('hidden');
+        modalContainer.classList.remove('flex');
+    });
+};
+
+const migrateUserData = async (user) => {
+  const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+  
+  if (userSnap.exists() && userSnap.data().migrationStatus === 'complete') {
+    return;
+  }
+
+  console.log("Starting migration...");
+  showToast("Optimizing database... please wait.", "info");
+
+  const oldRoot = `artifacts/${appId}/users/${user.uid}`;
+  let batch = writeBatch(db);
+  let opCount = 0;
+
+  const checkCommit = async () => {
+    if (opCount >= 400) {
+      await batch.commit();
+      batch = writeBatch(db);
+      opCount = 0;
+    }
+  };
+
+  // 1. Profile
+  const oldProfileRef = doc(db, `${oldRoot}/profile/userProfile`);
+  const oldProfileSnap = await getDoc(oldProfileRef);
+  if (oldProfileSnap.exists()) {
+    batch.set(userRef, { ...oldProfileSnap.data(), migrationStatus: 'complete' }, { merge: true });
+    opCount++;
+  } else {
+    batch.set(userRef, { migrationStatus: 'complete' }, { merge: true });
+    opCount++;
+  }
+  await checkCommit();
+
+  // Helper to migrate collection
+  const migrateCollection = async (oldName, newPath, type = null) => {
+    const oldColRef = collection(db, `${oldRoot}/${oldName}`);
+    const snap = await getDocs(oldColRef);
+    for (const d of snap.docs) {
+      const newData = { ...d.data() };
+      if (type) newData.type = type;
+      const newDocRef = doc(db, newPath, d.id);
+      batch.set(newDocRef, newData);
+      opCount++;
+      await checkCommit();
+    }
+  };
+
+  await migrateCollection('habits', `users/${user.uid}/habits`);
+  await migrateCollection('habitLogs', `users/${user.uid}/logs`);
+  await migrateCollection('expenses', `users/${user.uid}/finance`);
+  await migrateCollection('achievements', `users/${user.uid}/achievements`);
+  await migrateCollection('sleepLogs', `users/${user.uid}/sleepLogs`);
+  await migrateCollection('stickyNotes', `users/${user.uid}/stickyNotes`);
+  
+  // Academics (Assignments + Grades)
+  await migrateCollection('assignments', `users/${user.uid}/academics`, 'assignment');
+  await migrateCollection('grades', `users/${user.uid}/academics`, 'grade');
+
+  if (opCount > 0) {
+      await batch.commit();
+  }
+  
+  showToast("Database optimization complete!", "success");
 };
 
 // --- Firebase Initialization & Auth ---
@@ -297,6 +417,10 @@ const initializeFirebase = async () => {
         if (loginModal) loginModal.classList.add('hidden');
         userId = user.uid;
         console.log(`Authenticated: ${userId}, anonymous: ${user.isAnonymous}`);
+        
+        // Run Migration
+        await migrateUserData(user);
+
         const syncText = document.getElementById('sync-status-text');
 
         if (!user.isAnonymous) {
@@ -589,53 +713,54 @@ const checkWeeklyAchievementReset = async () => {
   if (!userProfile || !achievements) return;
   
   const today = new Date();
-  const dayOfWeek = today.getDay(); // 1 is Monday
-  const todayStr = getTodayString();
+  const lastResetStr = userProfile.lastAchievementResetDate;
   
-  // Only run on Monday
-  if (dayOfWeek === 1) {
-      // Check if we already reset today
-      if (userProfile.lastAchievementResetDate === todayStr) return;
-      
-      console.log("Monday detected. Checking for weekly achievement reset...");
+  // Calculate start of current week (Monday)
+  const currentWeekStart = new Date(today);
+  const day = currentWeekStart.getDay();
+  const diff = currentWeekStart.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+  currentWeekStart.setDate(diff);
+  currentWeekStart.setHours(0,0,0,0);
+  
+  const lastResetDate = lastResetStr ? new Date(lastResetStr) : new Date(0);
+  
+  // If last reset was before this week's start
+  if (lastResetDate < currentWeekStart) {
+      console.log("New week detected. Resetting achievements...");
       
       // Filter achievements to delete (keep 7_day_streak)
       // Also keeping 'first_habit' or other one-time milestones might be desired, 
       // but user said "achievements to reset every monday", implying weekly goals.
       // Week Warrior (7_day_streak) is explicitly excluded by user request.
-      const toDelete = achievements.filter(a => a.achievementId !== '7_day_streak');
+      const permanentIds = ['first_habit', 'first_pomodoro', 'math_whiz', 'grade_guru', 'bunk_master', '7_day_streak'];
+      const toDelete = achievements.filter(a => !permanentIds.includes(a.achievementId));
       
+      const batch = writeBatch(db);
       if (toDelete.length > 0) {
-          const batch = writeBatch(db);
           toDelete.forEach(a => {
-              batch.delete(doc(db, `artifacts/${appId}/users/${userId}/achievements`, a.id));
+              batch.delete(doc(db, `users/${userId}/achievements`, a.id));
           });
-          
-          // Update profile to prevent re-run
-          const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`);
-          batch.set(profileRef, { lastAchievementResetDate: todayStr }, { merge: true });
-          
-          await batch.commit();
-          showToast("New Week! Achievements have been reset. 🚀");
-      } else {
-           // Just update the date if nothing to delete to avoid checking again
-           const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`);
-           await setDoc(profileRef, { lastAchievementResetDate: todayStr }, { merge: true });
       }
+      
+      // Update profile to prevent re-run
+      const profileRef = doc(db, `users/${userId}`);
+      batch.set(profileRef, { lastAchievementResetDate: currentWeekStart.toISOString() }, { merge: true });
+      
+      await batch.commit();
+      if (toDelete.length > 0) showToast("New Week! Achievements have been reset. 🚀");
   }
 };
 
 const setupListeners = () => {
   const collections = {
-    profile: `artifacts/${appId}/users/${userId}/profile/userProfile`,
-    habits: `artifacts/${appId}/users/${userId}/habits`,
-    habitLogs: `artifacts/${appId}/users/${userId}/habitLogs`,
-    achievements: `artifacts/${appId}/users/${userId}/achievements`,
-    assignments: `artifacts/${appId}/users/${userId}/assignments`,
-    grades: `artifacts/${appId}/users/${userId}/grades`,
-    sleepLogs: `artifacts/${appId}/users/${userId}/sleepLogs`,
-    stickyNotes: `artifacts/${appId}/users/${userId}/stickyNotes`,
-    expenses: `artifacts/${appId}/users/${userId}/expenses`,
+    profile: `users/${userId}`,
+    habits: `users/${userId}/habits`,
+    logs: `users/${userId}/logs`,
+    achievements: `users/${userId}/achievements`,
+    academics: `users/${userId}/academics`,
+    sleepLogs: `users/${userId}/sleepLogs`,
+    stickyNotes: `users/${userId}/stickyNotes`,
+    finance: `users/${userId}/finance`,
   };
 
   onSnapshot(doc(db, collections.profile), (docSnap) => {
@@ -667,7 +792,7 @@ const setupListeners = () => {
     habits = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderDashboard();
   });
-  onSnapshot(query(collection(db, collections.habitLogs)), (snap) => {
+  onSnapshot(query(collection(db, collections.logs)), (snap) => {
     habitLogs = {};
     snap.docs.forEach(d => {
       const log = { id: d.id, ...d.data() };
@@ -680,12 +805,11 @@ const setupListeners = () => {
     achievements = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     checkWeeklyAchievementReset();
   });
-  onSnapshot(query(collection(db, collections.assignments)), (snap) => {
-    assignments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  onSnapshot(query(collection(db, collections.academics)), (snap) => {
+    const allAcademics = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    assignments = allAcademics.filter(d => d.type === 'assignment');
+    grades = allAcademics.filter(d => d.type === 'grade');
     renderAssignments();
-  });
-  onSnapshot(query(collection(db, collections.grades)), (snap) => {
-    grades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     if(currentView === 'analytics-view') renderAnalytics();
   });
   onSnapshot(query(collection(db, collections.sleepLogs)), (snap) => {
@@ -698,7 +822,7 @@ const setupListeners = () => {
     stickyNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderStickyNotes();
   });
-  onSnapshot(query(collection(db, collections.expenses)), (snap) => {
+  onSnapshot(query(collection(db, collections.finance)), (snap) => {
     expenses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderFinance();
   });
@@ -716,11 +840,11 @@ const renderDashboard = () => {
   animateDashboardItems();
 };
 
-const renderAnalytics = () => {
+const renderAnalytics = debounce(() => {
   document.getElementById('gpa-target-input').value = userProfile.targetGpa || 3.5;
   populateHabitSelector();
   renderCorrelationChart();
-};
+}, 200);
 
 const updateGreeting = () => {
     const hour = new Date().getHours();
@@ -847,10 +971,7 @@ const renderHabitsForToday = () => {
       `;
     }).join('');
   }
-  
-  document.querySelectorAll('.habit-item .action-btn').forEach(btn => {
-    btn.addEventListener('click', handleHabitAction);
-  });
+  // Event delegation is handled in window.onload
 };
 
 
@@ -1020,8 +1141,10 @@ const switchPomodoroMode = (mode) => {
 const startPausePomodoro = () => {
   pomodoro.isRunning = !pomodoro.isRunning;
   if (pomodoro.isRunning) {
+    const endTime = Date.now() + pomodoro.timeLeft * 1000;
     pomodoro.timerId = setInterval(() => {
-      pomodoro.timeLeft--;
+      const now = Date.now();
+      pomodoro.timeLeft = Math.ceil((endTime - now) / 1000);
       if (pomodoro.timeLeft <= 0) {
         stopPomodoro();
         handlePomodoroAutoSwitch();
@@ -1055,8 +1178,7 @@ const handlePomodoroAutoSwitch = () => {
       : "Break finished. Back to work!");
     switchPomodoroMode('work');
   }
-  // Auto-start the next session
-  startPausePomodoro();
+  // Auto-start removed per user request
 };
 
 const stopPomodoro = () => {
@@ -1073,7 +1195,7 @@ const resetPomodoro = () => {
 
 const setMentalHealthValue = async (type, value) => {
   const todayStr = getTodayString();
-  const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`);
+  const profileRef = doc(db, `users/${userId}`);
   await setDoc(profileRef, { [type]: { [todayStr]: value } }, { merge: true });
   
   // Update local state and re-render immediately for visual feedback
@@ -1115,47 +1237,100 @@ const setMentalHealthValue = async (type, value) => {
 const saveSleepHours = async () => {
   const hours = document.getElementById('sleep-hours').value;
   if (hours === '' || isNaN(hours)) return;
-  const sleepRef = doc(db, `artifacts/${appId}/users/${userId}/sleepLogs`, getTodayString());
+  const sleepRef = doc(db, `users/${userId}/sleepLogs`, getTodayString());
   await setDoc(sleepRef, { hours: parseFloat(hours) });
   showToast('Sleep logged!');
 };
 
 const updateHabitStatus = async (habitId, status) => {
   const todayStr = getTodayString();
-  const logForToday = habitLogs[todayStr]?.[habitId];
-  const logRef = logForToday
-    ? doc(db, `artifacts/${appId}/users/${userId}/habitLogs`, logForToday.id)
-    : doc(collection(db, `artifacts/${appId}/users/${userId}/habitLogs`));
-
   const normalized = normalizeStatus(status);
+  
+  // Optimistic UI Update
+  if (!habitLogs[todayStr]) habitLogs[todayStr] = {};
+  const previousLog = habitLogs[todayStr][habitId];
+  const previousStatus = previousLog ? previousLog.status : null;
+  
+  // Update local state immediately
+  habitLogs[todayStr][habitId] = { 
+      ...(previousLog || {}), 
+      id: previousLog?.id || 'temp_' + Date.now(), 
+      userId, 
+      habitId, 
+      date: todayStr, 
+      status: normalized 
+  };
+  
+  // Re-render UI immediately
+  renderDashboard();
 
-  await setDoc(
-    logRef,
-    { userId, habitId, date: todayStr, status: normalized },
-    { merge: true }
-  );
+  try {
+      const logForToday = previousLog; // Use the one we had before optimistic update logic started (or query DB if needed, but we have local state)
+      // Actually, we need the real ID if it exists.
+      // If it was a temp ID, we might have issues if we try to update it.
+      // But here we are just setting the doc.
+      
+      // We need to find the doc ref.
+      // If we have a real ID (not starting with temp_), use it.
+      // If not, create new doc ref.
+      
+      let logRef;
+      if (logForToday && logForToday.id && !logForToday.id.startsWith('temp_')) {
+          logRef = doc(db, `users/${userId}/logs`, logForToday.id);
+      } else {
+          // Check if we can find it in the snapshot? 
+          // For now, let's assume if it's not in local state with a real ID, we create a new one.
+          // But wait, if we just created it optimistically, we don't have a real ID yet.
+          // We should query to be safe or use a deterministic ID?
+          // Using deterministic ID (date_habitId) is better for idempotency but Firestore auto-ids are random.
+          // Let's query.
+          const q = query(collection(db, `users/${userId}/logs`), where("date", "==", todayStr), where("habitId", "==", habitId));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+              logRef = querySnapshot.docs[0].ref;
+          } else {
+              logRef = doc(collection(db, `users/${userId}/logs`));
+          }
+      }
 
-  const prevNorm = normalizeStatus(logForToday?.status);
+      await setDoc(
+        logRef,
+        { userId, habitId, date: todayStr, status: normalized },
+        { merge: true }
+      );
 
-  if (normalized === 'completed' && prevNorm !== 'completed') {
-    await addXP(habitId);
-    await updateStreak(habitId, 'increment');
-    await grantAchievement('first_habit');
-    
-    // Time-based achievements
-    const now = new Date();
-    const hour = now.getHours();
-    const day = now.getDay(); // 0 = Sun, 6 = Sat
+      const prevNorm = normalizeStatus(previousStatus);
 
-    if (hour >= 22 || hour < 4) await grantAchievement('night_owl');
-    if (hour >= 4 && hour < 7) await grantAchievement('early_bird');
-    if (day === 0 || day === 6) await grantAchievement('weekend_warrior');
+      if (normalized === 'completed' && prevNorm !== 'completed') {
+        await addXP(habitId);
+        await updateStreak(habitId, 'increment');
+        await grantAchievement('first_habit');
+        
+        // Time-based achievements
+        const now = new Date();
+        const hour = now.getHours();
+        const day = now.getDay(); // 0 = Sun, 6 = Sat
 
-  } else if (normalized === 'failed') {
-    await updateStreak(habitId, 'reset');
+        if (hour >= 22 || hour < 4) await grantAchievement('night_owl');
+        if (hour >= 4 && hour < 7) await grantAchievement('early_bird');
+        if (day === 0 || day === 6) await grantAchievement('weekend_warrior');
+
+      } else if (normalized === 'failed') {
+        await updateStreak(habitId, 'reset');
+      }
+
+      await checkPerfectDayAchievement();
+  } catch (error) {
+      console.error("Optimistic update failed:", error);
+      // Revert local state
+      if (previousLog) {
+          habitLogs[todayStr][habitId] = previousLog;
+      } else {
+          delete habitLogs[todayStr][habitId];
+      }
+      renderDashboard();
+      showToast("Failed to update status. Please try again.", "error");
   }
-
-  await checkPerfectDayAchievement();
 };
 
 const addXP = async (habitId) => {
@@ -1172,11 +1347,11 @@ const addXP = async (habitId) => {
     newXP -= xpForNextLevel;
     showToast(`Level Up! You've reached Level ${newLevel}!`);
   }
-  await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`), { xp: newXP, level: newLevel });
+  await updateDoc(doc(db, `users/${userId}`), { xp: newXP, level: newLevel });
 };
 
 const updateStreak = async (habitId, action) => {
-  const habitRef = doc(db, `artifacts/${appId}/users/${userId}/habits`, habitId);
+  const habitRef = doc(db, `users/${userId}/habits`, habitId);
   const habit = habits.find(h => h.id === habitId);
   if (!habit) return;
   let newStreak = habit.streak || 0;
@@ -1208,7 +1383,7 @@ const updateStreak = async (habitId, action) => {
     if (!hasOtherWeekWarrior) {
       const weekWarrior = achievements.find(a => a.achievementId === '7_day_streak');
       if (weekWarrior) {
-        await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/achievements`, weekWarrior.id));
+        await deleteDoc(doc(db, `users/${userId}/achievements`, weekWarrior.id));
         showToast("Streak broken! Week Warrior status lost. 😢");
       }
     }
@@ -1236,7 +1411,7 @@ const checkPerfectDayAchievement = async () => {
 
 const grantAchievement = async (achievementId) => {
   if (achievements.some(a => a.achievementId === achievementId)) return;
-  await addDoc(collection(db, `artifacts/${appId}/users/${userId}/achievements`), {
+  await addDoc(collection(db, `users/${userId}/achievements`), {
     achievementId,
     dateEarned: new Date().toISOString()
   });
@@ -1345,8 +1520,8 @@ const showAddHabitModal = (habitToEdit = null) => {
     };
 
     const ref = isEditing 
-      ? doc(db, `artifacts/${appId}/users/${userId}/habits`, habitToEdit.id)
-      : collection(db, `artifacts/${appId}/users/${userId}/habits`);
+      ? doc(db, `users/${userId}/habits`, habitToEdit.id)
+      : collection(db, `users/${userId}/habits`);
     isEditing ? await updateDoc(ref, data) : await addDoc(ref, data);
     
     closeModal();
@@ -1355,9 +1530,9 @@ const showAddHabitModal = (habitToEdit = null) => {
     document.getElementById('delete-habit-btn').addEventListener('click', async () => {
       // Using a custom modal for confirmation instead of window.confirm
       if (await showConfirmModal('Are you sure you want to delete this habit and all its history? This action cannot be undone.')) {
-        await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/habits`, habitToEdit.id));
+        await deleteDoc(doc(db, `users/${userId}/habits`, habitToEdit.id));
         // Also delete logs
-        const logsQuery = query(collection(db, `artifacts/${appId}/users/${userId}/habitLogs`), where("habitId", "==", habitToEdit.id));
+        const logsQuery = query(collection(db, `users/${userId}/logs`), where("habitId", "==", habitToEdit.id));
         const logsSnapshot = await getDocs(logsQuery);
         const batch = writeBatch(db);
         logsSnapshot.docs.forEach(d => batch.delete(d.ref));
@@ -1425,10 +1600,11 @@ const showAssignmentModal = (assignmentToEdit = null) => {
       subject: formData.get('subject'),
       dueDate: formData.get('dueDate'),
       completed: assignmentToEdit?.completed || false,
+      type: 'assignment'
     };
     const ref = isEditing 
-      ? doc(db, `artifacts/${appId}/users/${userId}/assignments`, assignmentToEdit.id)
-      : collection(db, `artifacts/${appId}/users/${userId}/assignments`);
+      ? doc(db, `users/${userId}/academics`, assignmentToEdit.id)
+      : collection(db, `users/${userId}/academics`);
     isEditing ? await updateDoc(ref, data) : await addDoc(ref, data);
     closeModal();
   });
@@ -1463,8 +1639,9 @@ const showGradeModal = () => {
       subject: formData.get('subject'),
       grade: parseFloat(formData.get('grade')),
       date: formData.get('date'),
+      type: 'grade'
     };
-    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/grades`), data);
+    await addDoc(collection(db, `users/${userId}/academics`), data);
     grantAchievement('grade_guru');
     closeModal();
   });
@@ -1507,24 +1684,33 @@ function renderCorrelationChart() {
   if (correlationChartInstance) correlationChartInstance.destroy();
   correlationChartInstance = null;
 
-  // Use real grades if any, else sample data
+  // Generate last 30 days
+  const labels = [];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    labels.push(getDateString(d));
+  }
+
   const hasGrades = grades && grades.length > 0;
   const displayGrades = hasGrades ? grades : SAMPLE_GRADES;
   const displayMoods = hasGrades ? userProfile.moods : SAMPLE_MOODS;
   const displaySleep = hasGrades ? sleepLogs : SAMPLE_SLEEP;
 
-  const sortedGrades = [...displayGrades].sort((a, b) => new Date(a.date) - new Date(b.date));
-  if (sortedGrades.length === 0) return;
-
-  const labels = sortedGrades.map(g => g.date);
   const colPrimary = cssVar('--primary');
   const colWarning = cssVar('--warning');
   const colAccent = cssVar('--accent');
   const moodMap = { sad: 1, neutral: 2, happy: 3 };
 
-  // Build chart data as before
-  const moodData = labels.map(d => displayMoods[d] ? moodMap[displayMoods[d]] : null);
-  const sleepData = labels.map(d => displaySleep[d] || null);
+  // Map data to dates
+  const gradeData = labels.map(date => {
+    const g = displayGrades.find(item => item.date === date);
+    return g ? g.grade : null;
+  });
+  
+  const moodData = labels.map(date => displayMoods[date] ? moodMap[displayMoods[date]] : null);
+  const sleepData = labels.map(date => displaySleep[date] || null);
 
   // If using sample data, show an info message
   const infoMsg = document.getElementById('analytics-info-message');
@@ -1542,7 +1728,7 @@ function renderCorrelationChart() {
     data: {
       labels,
       datasets: [
-        { label: 'Grade', data: sortedGrades.map(g => g.grade), borderColor: colPrimary, yAxisID: 'y', tension: 0.1, fill: false },
+        { label: 'Grade', data: gradeData, borderColor: colPrimary, yAxisID: 'y', tension: 0.1, fill: false, spanGaps: true },
         { label: 'Mood', data: moodData, borderColor: colWarning, yAxisID: 'y1', tension: 0.1, fill: false, spanGaps: true },
         { label: 'Sleep hours', data: sleepData, borderColor: colAccent, yAxisID: 'y1', tension: 0.1, fill: false, spanGaps: true }
       ]
@@ -1679,7 +1865,7 @@ const renderCGPASimulator = async () => {
   calculateCGPA();
 };
 
-const saveCGPASubjects = async () => {
+const saveCGPASubjects = debounce(async () => {
   if (userId) {
     const prevCGPA = parseFloat(document.getElementById('prev-cgpa-input')?.value) || 0;
     const prevCredits = parseFloat(document.getElementById('prev-credits-input')?.value) || 0;
@@ -1692,7 +1878,7 @@ const saveCGPASubjects = async () => {
         lastUpdated: new Date()
     }, { merge: true });
   }
-};
+}, 1000);
 
 // Expose helpers to window for inline events
 window.updateCGPASubject = (index, field, value) => {
@@ -1910,17 +2096,38 @@ const renderBurnoutMeter = () => {
   }
   const stressScore = stressDays > 0 ? totalStress / stressDays : 50; // Default to medium if no data
 
-  // 3. Calculate Daily Habit Completion Score
-  const todayStr = getDateString(new Date());
-  const completedToday = habitLogs[todayStr] || {};
-  const completedCount = Object.keys(completedToday).length;
+  // 3. Calculate Daily Habit Completion Score (7-day moving average)
+  let totalHabitScore = 0;
+  let habitDays = 0;
   const totalHabits = habits.length;
-  const dailyHabitCompletionScore = totalHabits > 0 ? (completedCount / totalHabits) * 100 : 0;
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setDate(today.getDate() - i);
+    const dateStr = getDateString(d);
+    
+    // Get logs for this day
+    const logsForDay = habitLogs[dateStr] || {};
+    // Count completed habits
+    let completedCount = 0;
+    // We need to check against the habits array to ensure we only count current habits
+    // Or just count keys in logsForDay that are 'completed'
+    Object.values(logsForDay).forEach(log => {
+        if (isCompleted(log.status)) completedCount++;
+    });
+
+    if (totalHabits > 0) {
+        totalHabitScore += (completedCount / totalHabits) * 100;
+        habitDays++;
+    }
+  }
+  
+  const dailyHabitCompletionScore = habitDays > 0 ? totalHabitScore / habitDays : 0;
 
   // 4. Combined Battery Health
   // Formula: (SleepScore * 0.4) + (StressScore * 0.3) + (DailyHabitCompletionScore * 0.3)
   let batteryHealth = 0;
-  let isNoData = (sleepDays === 0 && stressDays === 0 && totalHabits === 0);
+  let isNoData = (sleepDays === 0 && stressDays === 0 && habitDays === 0);
 
   // Reset classes first to avoid conflicts
   liquid.className = 'w-full rounded-lg absolute bottom-1 left-1 right-1 z-0';
@@ -2060,13 +2267,12 @@ const renderHeatmap = (habitId) => {
   container.innerHTML = '';
   
   const today = new Date();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  
-  // Create grid layout
+  // Render rolling window of Last 30 Days
   const gridHTML = [];
   
-  for (let i = 1; i <= daysInMonth; i++) {
-    const date = new Date(today.getFullYear(), today.getMonth(), i);
+  for (let i = 29; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
     const dateStr = getDateString(date);
     const log = habitLogs[dateStr]?.[habitId];
     
@@ -2124,7 +2330,7 @@ const renderFinance = () => {
 
 const addExpense = async (amount, category, description = '') => {
   if (!userId) return;
-  await addDoc(collection(db, `artifacts/${appId}/users/${userId}/expenses`), {
+  await addDoc(collection(db, `users/${userId}/finance`), {
     amount: parseFloat(amount),
     category,
     description,
@@ -2136,7 +2342,7 @@ const addExpense = async (amount, category, description = '') => {
 const deleteExpense = async (expenseId) => {
   if (!userId || !expenseId) return;
   try {
-    await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/expenses`, expenseId));
+    await deleteDoc(doc(db, `users/${userId}/finance`, expenseId));
     showToast('Expense deleted');
   } catch (err) {
     console.error('Delete expense error:', err);
@@ -2196,11 +2402,113 @@ const showAddExpenseModal = (preSelectedCategory = '') => {
     setTimeout(() => modalContainer.querySelector('input[name="amount"]').focus(), 100);
 };
 
+const showReviewModal = async () => {
+  if (!userId) {
+    showToast("Please sign in to write a review.");
+    return;
+  }
+
+  // Check for existing review
+  let existingReview = null;
+  try {
+    const reviewRef = doc(db, `reviews/${userId}`);
+    const docSnap = await getDoc(reviewRef);
+    if (docSnap.exists()) existingReview = docSnap.data();
+  } catch (e) {
+    console.error("Error fetching review:", e);
+  }
+
+  const rating = existingReview?.rating || 5;
+  const comment = existingReview?.comment || '';
+
+  const modalHTML = `
+    <div class="modal-content w-full max-w-sm mx-auto p-6 animate-fade-in-up">
+      <h3 class="text-lg font-bold mb-4 text-center">Rate Your Experience</h3>
+      <form id="review-form" class="space-y-4">
+        <div class="flex justify-center gap-2 mb-2" id="star-rating">
+          ${[1, 2, 3, 4, 5].map(i => `
+            <button type="button" data-value="${i}" class="star-btn text-3xl transition-transform hover:scale-110 ${i <= rating ? 'text-yellow-400' : 'text-gray-300'}">★</button>
+          `).join('')}
+        </div>
+        <input type="hidden" name="rating" id="rating-input" value="${rating}">
+        
+        <div>
+            <label class="text-xs font-medium text-gray-500">Your Feedback</label>
+            <textarea name="comment" rows="4" class="w-full p-3 rounded-xl border border-glass-border bg-white/5 text-text-default focus:border-primary focus:ring-1 focus:ring-primary outline-none resize-none" placeholder="What do you love? What can we improve?">${comment}</textarea>
+        </div>
+        
+        <div class="flex justify-end gap-2 mt-4">
+            <button type="button" class="cancel-btn px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700">Cancel</button>
+            <button type="submit" class="px-6 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:opacity-90 shadow-neon">Submit Review</button>
+        </div>
+      </form>
+    </div>`;
+    
+    modalContainer.innerHTML = modalHTML;
+    modalContainer.classList.remove('hidden');
+    modalContainer.classList.add('flex');
+    
+    // Star Rating Logic
+    const stars = modalContainer.querySelectorAll('.star-btn');
+    const ratingInput = modalContainer.querySelector('#rating-input');
+    
+    stars.forEach(star => {
+        star.addEventListener('click', () => {
+            const val = parseInt(star.dataset.value);
+            ratingInput.value = val;
+            stars.forEach(s => {
+                const sVal = parseInt(s.dataset.value);
+                if (sVal <= val) {
+                    s.classList.remove('text-gray-300');
+                    s.classList.add('text-yellow-400');
+                } else {
+                    s.classList.remove('text-yellow-400');
+                    s.classList.add('text-gray-300');
+                }
+            });
+        });
+    });
+
+    modalContainer.querySelector('.cancel-btn').addEventListener('click', closeModal);
+    modalContainer.querySelector('#review-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const newRating = parseInt(formData.get('rating'));
+        const newComment = formData.get('comment');
+        
+        try {
+            await setDoc(doc(db, `reviews/${userId}`), {
+                userId,
+                displayName: userProfile.displayName || 'Anonymous',
+                photoURL: userProfile.photoURL || null,
+                rating: newRating,
+                comment: newComment,
+                updatedAt: new Date().toISOString()
+            });
+            showToast("Thank you for your review! 🌟");
+            closeModal();
+        } catch (err) {
+            console.error("Error submitting review:", err);
+            showToast("Failed to submit review.");
+        }
+    });
+};
+
 const showFinanceHistoryModal = () => {
-    const currentMonthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const now = new Date();
+    const currentMonthStr = now.toISOString().slice(0, 7); // YYYY-MM
+    
+    // Calculate Last Month
+    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthStr = lastMonthDate.toISOString().slice(0, 7);
+    const lastMonthName = lastMonthDate.toLocaleString('default', { month: 'short' });
+
     const monthlyExpenses = expenses
         .filter(e => e.date.startsWith(currentMonthStr))
         .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const lastMonthExpenses = expenses.filter(e => e.date.startsWith(lastMonthStr));
+    const lastMonthSpent = lastMonthExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
     const totalSpent = monthlyExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
 
@@ -2233,9 +2541,15 @@ const showFinanceHistoryModal = () => {
         <button class="cancel-btn text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
       </div>
       
-      <div class="p-4 bg-blue-50 dark:bg-slate-900">
-        <div class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Total Spent (This Month)</div>
-        <div class="text-3xl font-bold text-gray-800 dark:text-white">₹${totalSpent}</div>
+      <div class="p-4 bg-blue-50 dark:bg-slate-900 grid grid-cols-2 gap-4">
+        <div>
+            <div class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">This Month</div>
+            <div class="text-3xl font-bold text-gray-800 dark:text-white">₹${totalSpent}</div>
+        </div>
+        <div class="border-l border-gray-200 dark:border-slate-700 pl-4">
+            <div class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">Last Month (${lastMonthName})</div>
+            <div class="text-2xl font-bold text-gray-600 dark:text-gray-300">₹${lastMonthSpent}</div>
+        </div>
       </div>
 
       <div class="finance-history-list flex-1 overflow-y-auto p-4 custom-scrollbar">
@@ -2273,7 +2587,7 @@ const showAvatarPickerModal = () => {
         
         avatarsHTML += `
             <div class="avatar-option cursor-pointer p-2 rounded-lg transition-colors flex justify-center items-center ${isSelected ? 'bg-primary/10 ring-2 ring-primary' : 'hover:bg-gray-100 dark:hover:bg-slate-700'}" data-src="${filePath}">
-                <img src="${filePath}" alt="Avatar ${num}" class="w-16 h-16 rounded-full border-2 ${isSelected ? 'border-primary' : 'border-transparent'} transition-all">
+                <img src="${filePath}" alt="Avatar ${num}" class="w-16 h-16 rounded-full object-cover border-2 ${isSelected ? 'border-primary' : 'border-transparent'} transition-all">
             </div>
         `;
     }
@@ -2359,7 +2673,7 @@ const showAvatarPickerModal = () => {
         }
 
         if (hasChanges && userId) {
-            const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`);
+            const profileRef = doc(db, `users/${userId}`);
             await setDoc(profileRef, updates, { merge: true });
             showToast("Profile updated successfully! ✨");
         } else if (!hasChanges) {
@@ -2430,7 +2744,7 @@ const showEditLimitModal = () => {
     userProfile.dailyLimit = val;
     renderFinance();
     if (userId) {
-      const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`);
+      const profileRef = doc(db, `users/${userId}`);
       await setDoc(profileRef, { dailyLimit: val }, { merge: true });
       showToast(`Monthly limit updated to ₹${val}`);
     }
@@ -2537,6 +2851,27 @@ const drawPlant = (progress) => {
 window.onload = () => {
   initializeFirebase();
   
+  // Habit Action Delegation
+  const habitsList = document.getElementById('habits-list');
+  if (habitsList) {
+      habitsList.addEventListener('click', (e) => {
+          const btn = e.target.closest('.action-btn');
+          if (btn) {
+              e.stopPropagation();
+              const habitItem = btn.closest('.habit-item');
+              if (!habitItem) return;
+              const habitId = habitItem.dataset.id;
+              const action = btn.dataset.action;
+              
+              if (action === 'complete' || action === 'skip') {
+                updateHabitStatus(habitId, action);
+              } else if (action === 'edit') {
+                showAddHabitModal(habits.find(h => h.id === habitId));
+              }
+          }
+      });
+  }
+
   // Settings Button - Change Avatar
   const settingsBtn = document.getElementById('settings-btn');
   if (settingsBtn) {
@@ -2569,7 +2904,7 @@ window.onload = () => {
     
     // Save preference to Firestore
     if (userId && db) {
-      const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`);
+      const profileRef = doc(db, `users/${userId}`);
       setDoc(profileRef, { settings: { theme: newTheme } }, { merge: true });
     }
   });
@@ -2606,12 +2941,73 @@ window.onload = () => {
   });
   document.getElementById('assignment-list').addEventListener('click', (e) => {
     if (e.target.classList.contains('toggle-assignment-btn')) {
-      updateDoc(doc(db, `artifacts/${appId}/users/${userId}/assignments`, e.target.dataset.id), { completed: true });
+      updateDoc(doc(db, `users/${userId}/academics`, e.target.dataset.id), { completed: true });
     }
   });
   document.getElementById('gpa-target-input').addEventListener('change', (e) => {
-    updateDoc(doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`), { targetGpa: parseFloat(e.target.value) });
+    updateDoc(doc(db, `users/${userId}`), { targetGpa: parseFloat(e.target.value) });
   });
+
+  // Percentage Calculator Toggle
+  const toggleCalcModeBtn = document.getElementById('toggle-calc-mode-btn');
+  const cgpaContent = document.getElementById('cgpa-calc-content');
+  const percentageContent = document.getElementById('percentage-calc-content');
+  
+  if (toggleCalcModeBtn && cgpaContent && percentageContent) {
+    toggleCalcModeBtn.addEventListener('click', () => {
+        const isPercentage = percentageContent.classList.contains('hidden');
+        if (isPercentage) {
+            cgpaContent.classList.add('hidden');
+            percentageContent.classList.remove('hidden');
+            toggleCalcModeBtn.innerText = 'Switch to CGPA';
+        } else {
+            cgpaContent.classList.remove('hidden');
+            percentageContent.classList.add('hidden');
+            toggleCalcModeBtn.innerText = 'Switch to Percentage %';
+        }
+    });
+  }
+
+  // Percentage Calculation Logic
+  const calcPercentageBtn = document.getElementById('calc-percentage-btn');
+  if (calcPercentageBtn) {
+    calcPercentageBtn.addEventListener('click', () => {
+        const obtained = parseFloat(document.getElementById('total-marks-obtained').value);
+        const max = parseFloat(document.getElementById('total-max-marks').value);
+        const resultEl = document.getElementById('percentage-value');
+        const gradeEl = document.getElementById('percentage-grade');
+        
+        if (isNaN(obtained) || isNaN(max) || max === 0) {
+            showToast('Please enter valid marks', 'error');
+            return;
+        }
+        
+        const percentage = (obtained / max) * 100;
+        resultEl.innerText = `${percentage.toFixed(2)}%`;
+        
+        // Simple Grading System
+        let grade = '';
+        if (percentage >= 90) grade = 'Outstanding (A+)';
+        else if (percentage >= 80) grade = 'Excellent (A)';
+        else if (percentage >= 70) grade = 'Good (B)';
+        else if (percentage >= 60) grade = 'Average (C)';
+        else if (percentage >= 50) grade = 'Pass (D)';
+        else grade = 'Needs Improvement (F)';
+        
+        gradeEl.innerText = grade;
+        
+        // Animate result
+        if (typeof anime !== 'undefined') {
+            anime({
+                targets: resultEl,
+                scale: [1, 1.2, 1],
+                duration: 500,
+                easing: 'easeOutElastic(1, .8)'
+            });
+        }
+    });
+  }
+
   // Profile avatar click to sign in with Google
   document.getElementById('user-avatar').addEventListener('click', async () => {
     if (!auth.currentUser) {
@@ -2658,6 +3054,12 @@ window.onload = () => {
   const editLimitBtn = document.getElementById('edit-limit-btn');
   if (editLimitBtn) {
     editLimitBtn.addEventListener('click', showEditLimitModal);
+  }
+
+  // Review Button Listener
+  const reviewBtn = document.getElementById('write-review-btn');
+  if (reviewBtn) {
+      reviewBtn.addEventListener('click', showReviewModal);
   }
 
   // Donation Listener
@@ -2741,7 +3143,7 @@ async function addStickyNote() {
   if (!text || !userId) return;
   
   try {
-    await addDoc(collection(db, `artifacts/${appId}/users/${userId}/stickyNotes`), {
+    await addDoc(collection(db, `users/${userId}/stickyNotes`), {
       text,
       createdAt: new Date().toISOString()
     });
@@ -2755,7 +3157,7 @@ async function addStickyNote() {
 async function deleteStickyNote(noteId) {
   if (!userId) return;
   try {
-    await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/stickyNotes`, noteId));
+    await deleteDoc(doc(db, `users/${userId}/stickyNotes`, noteId));
   } catch (error) {
     console.error("Error deleting note:", error);
     showToast("Failed to delete note");
@@ -2829,6 +3231,12 @@ const calcAttendanceBtn = document.getElementById('calc-attendance-btn');
 const attendanceResult = document.getElementById('attendance-result');
 
 if (calcAttendanceBtn) {
+  // Load saved values on init
+  const savedTotal = localStorage.getItem('attendance_total');
+  const savedAttended = localStorage.getItem('attendance_attended');
+  if (savedTotal) totalClassesInput.value = savedTotal;
+  if (savedAttended) attendedClassesInput.value = savedAttended;
+
   calcAttendanceBtn.addEventListener('click', () => {
     const total = parseInt(totalClassesInput.value);
     const attended = parseInt(attendedClassesInput.value);
@@ -2839,6 +3247,16 @@ if (calcAttendanceBtn) {
       attendanceResult.classList.remove('hidden');
       return;
     }
+
+    if (attended > total) {
+      attendanceResult.textContent = "Attended classes cannot be more than total classes.";
+      attendanceResult.className = "p-3 rounded-lg bg-red-100 text-red-800 text-sm font-medium text-center";
+      attendanceResult.classList.remove('hidden');
+      return;
+    }
+
+    localStorage.setItem('attendance_total', total);
+    localStorage.setItem('attendance_attended', attended);
 
     const percentage = (attended / total) * 100;
     const target = 75; // Minimum attendance requirement
@@ -3020,6 +3438,9 @@ const stopAmbiance = () => {
     currentSource.stop();
     currentSource = null;
   }
+  if (audioCtx && audioCtx.state === 'running') {
+    audioCtx.suspend();
+  }
   document.querySelectorAll('.ambiance-btn').forEach(btn => {
     btn.classList.remove('bg-primary', 'text-white', 'border-primary');
     btn.classList.add('hover:bg-gray-100', 'dark:hover:bg-slate-700');
@@ -3055,7 +3476,7 @@ const updateUserProfile = async (googleUser) => {
     // Ensure auth and userId are available
     if (!auth.currentUser || !userId) return false;
     
-    const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/userProfile`);
+    const profileRef = doc(db, `users/${userId}`);
     const docSnap = await getDoc(profileRef);
     const currentData = docSnap.exists() ? docSnap.data() : {};
 
@@ -3294,5 +3715,6 @@ window.addEventListener('appinstalled', () => {
   console.log('PWA was installed');
   showToast('StudiOS installed successfully!', 'success');
 });
+
 
 
