@@ -1,13 +1,13 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { 
-  getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider, 
+import {
+  getAuth, signInAnonymously, signInWithPopup, GoogleAuthProvider,
   onAuthStateChanged, linkWithPopup, signInWithCredential, updateProfile
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-import { 
-  getFirestore, doc, setDoc, addDoc, updateDoc, deleteDoc, 
+import {
+  initializeFirestore, doc, setDoc, addDoc, updateDoc, deleteDoc,
   onSnapshot, collection, query, writeBatch, getDocs, where, getDoc,
-  enableIndexedDbPersistence
+  persistentLocalCache, persistentMultipleTabManager
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -21,22 +21,18 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
 
-// Enable offline persistence
-enableIndexedDbPersistence(db)
-  .catch((err) => {
-      if (err.code == 'failed-precondition') {
-          console.log('Multiple tabs open, persistence can only be enabled in one tab at a a time.');
-      } else if (err.code == 'unimplemented') {
-          console.log('The current browser does not support all of the features required to enable persistence');
-      }
-  });
+// Enable offline persistence with multi-tab support
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
 
-export { 
-  app, auth, db, 
-  signInAnonymously, signInWithPopup, GoogleAuthProvider, 
+export {
+  app, auth, db,
+  signInAnonymously, signInWithPopup, GoogleAuthProvider,
   onAuthStateChanged, linkWithPopup, signInWithCredential, updateProfile,
-  doc, setDoc, addDoc, updateDoc, deleteDoc, 
-  onSnapshot, collection, query, writeBatch, getDocs, where, getDoc 
+  doc, setDoc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, collection, query, writeBatch, getDocs, where, getDoc
 };
