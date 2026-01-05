@@ -1,19 +1,11 @@
 // Sleep-Mood Correlation Insights Module
 const insightsModule = {
-    // Local state for injected data (bridge from app.js)
-    _injectedSleepLogs: null,
-    _injectedMoodLogs: null,
-
-    // Set data from main app
-    setData(sleepLogs, moodLogs) {
-        this._injectedSleepLogs = sleepLogs;
-        this._injectedMoodLogs = moodLogs;
-        this.renderInsightsWidget();
-    },
 
     // Get sleep logs from localStorage or app state
     getSleepLogs() {
-        if (this._injectedSleepLogs) return this._injectedSleepLogs;
+        if (window.getStudiosData) {
+            return window.getStudiosData().sleepLogs || {};
+        }
         try {
             const saved = localStorage.getItem('studios_sleepLogs');
             return saved ? JSON.parse(saved) : {};
@@ -24,7 +16,9 @@ const insightsModule = {
 
     // Get mood data from localStorage or app state
     getMoodData() {
-        if (this._injectedMoodLogs) return this._injectedMoodLogs;
+        if (window.getStudiosData) {
+            return window.getStudiosData().moodData || {};
+        }
         try {
             const saved = localStorage.getItem('studios_moodLogs');
             return saved ? JSON.parse(saved) : {};
