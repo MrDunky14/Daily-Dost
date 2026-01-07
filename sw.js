@@ -1,4 +1,4 @@
-const CACHE_NAME = 'studios-v4';
+const CACHE_NAME = 'studios-v2.5';
 const urlsToCache = [
   './',
   './index.html',
